@@ -1,3 +1,4 @@
 -> El código debe seguir los lineamientos de la Guía de Programación de C. Esta vez debería 
 usar archivos de encabezado (.h). Debe validar llamadas al sistema y las entradas del
 usuario.
+Aquí se colocarán las preguntas
