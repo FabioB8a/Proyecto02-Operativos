@@ -50,7 +50,7 @@ int main(int argc, char **argv){
         }
     }
 
-    if (IDTalker <= 0)
+    if (idTalker <= 0)
     {
         printf(" -> La cantidad de Talkers debe ser mayor a 0\n");
     }
