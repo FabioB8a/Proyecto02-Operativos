@@ -10,23 +10,35 @@
 #include "Nom.h"
 #include "signal.h"
 
+#define TAMMENSAJE 100
+
+typedef void (*signalhandler_t)(int);
+int fd1=0;
+char mensaje[TAMMENSAJE];
+
+signalhandler_t handler(void){
+	printf("Desde el Manejador");
+	read(fd1,mensaje,TAMMENSAJE);
+	printf("El proceso cliente termina y lee %s \n", mensaje);
+}
+
 int main(int argc, char **argv){
 
     char *nomPipe = NULL;
-    int cantidadTalkers = 0;
+    int idTalker = 0;
 
     if (argc != 5)
     {
         printf(" -> Número inválido de argumentos.\n");
-        printf(" -> Recuerda: Uso correcto del ejecutable: ./Manager -n cantidadTalkers -p nombrePipe\n");
+        printf(" -> Recuerda: Uso correcto del ejecutable: ./Talker -i IDTalker -p nombrePipe\n");
         exit(1);
     }
 
     for (int i = 1; i < argc; i += 2)
     {
-        if (strcmp(argv[i], "-n") == 0 && !cantidadTalkers)
+        if (strcmp(argv[i], "-i") == 0 && !idTalker)
         {
-            cantidadTalkers = atoi(argv[i + 1]);
+            idTalker = atoi(argv[i + 1]);
         }
         else if (strcmp(argv[i], "-p") == 0 && !nomPipe)
         {
@@ -38,13 +50,10 @@ int main(int argc, char **argv){
         }
     }
 
-    if (cantidadTalkers <= 0)
+    if (IDTalker <= 0)
     {
         printf(" -> La cantidad de Talkers debe ser mayor a 0\n");
     }
-
-    int idsTalkers[cantidadTalkers];
-    int cantidadActual = 0;
 
     // Creacion del pipe inicial, el que se recibe como argumento del main
     int  fd, fd1,  pid, n, cuantos,res,creado=0;
