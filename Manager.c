@@ -42,56 +42,6 @@ int main(int argc, char **argv){
     {
         printf(" -> La cantidad de Talkers debe ser mayor a 0\n");
     }
-
-    int idsTalkers[cantidadTalkers];
-    int cantidadActual = 0;
-
-    // Creacion del pipe inicial, el que se recibe como argumento del main
-    int  fd, fd1,  pid, n, cuantos,res,creado=0;
-    datap datos;
-    
-    
-    mode_t fifo_mode = S_IRUSR | S_IWUSR;
-    
-    // Creacion del pipe inicial, el que se recibe como argumento del main
-    unlink(nomPipe);
-            
-    if (mkfifo (nomPipe, fifo_mode) == -1) {
-        perror("Server mkfifo:");
-        exit(1);
-    }
-    
-    // Abre el pipe. 
-    if ((fd = open (nomPipe, O_RDONLY)) == -1) {
-            perror(" Servidor abriendo el pipe: ");
-            exit(1);
-
-    }
-    
-    // El otro proceso (cliente) le envia el nombre para el nuevo pipe y el pid. 
-    cuantos = read (fd, &datos, sizeof(datos));
-    if (cuantos == -1) {
-        perror("proceso lector:");
-        exit(1);
-    }
-    printf ("Server lee el string %s\n", datos.segundopipe);
-    printf ("Server el pid %d\n", datos.pid );
-
-    do { 
-        if ((fd1 = open(datos.segundopipe, O_WRONLY)) == -1) {
-            perror(" Server Abriendo el segundo pipe ");
-            printf(" Se volvera a intentar despues\n");
-            sleep(5); //los unicos sleeps que deben colocar son los que van en los ciclos para abrir los pipes que han creado o deben crear otros procesos         
-        } else creado = 1; 
-    }  while (creado == 0);
-
-
-        // Se escribe un mensaje para el  proceso (client)
-    
-    write(fd1, "hola", 5);
-    sleep(1);
-    kill(datos.pid,SIGUSR1);
-
-        
+       
     exit(0);
 }
