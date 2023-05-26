@@ -6,6 +6,7 @@
 /// Enumeración con los tipos de mensajes que puedo enviar
 
 enum TipoPeticion {
+	REGISTRO,
 	MENSAJE_INDIVIDUAL,
 	MENSAJE_GRUPAL,
 	CREACION_GRUPO,
@@ -14,6 +15,11 @@ enum TipoPeticion {
 };
 
 /// Tipos de mensaje que puedo enviar y sus estructuras
+
+struct Registro {
+	int idRegistro;
+	char nombre_pipe[MAX_TAM];
+};
 
 struct MensajeIndividual {
 	int origen;
@@ -45,6 +51,7 @@ struct DesconexionGrupo {
 
 /// Unión con todos los tipos de mensaje
 union TipoContenido {
+	struct Registro registro;
 	struct MensajeIndividual mensajeIndividual;
 	struct MensajeGrupal mensajeGrupal;
 	struct CreacionGrupo creacionGrupo;
