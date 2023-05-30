@@ -14,15 +14,39 @@
 #define _GNU_SOURCE
 #define MAX_TAM 120
 
-volatile sig_atomic_t comando = 0;
+// Variables globales para indicar eventos de entrada
+volatile sig_atomic_t recibido_consola_signal = 0;
+int pipe_especifico = 0;
+int resultado = 0;
 
-void handle_signal(int signum) {
-    if (signum == SIGUSR1) {
-        comando = 1;
+// Funcion de manejo de señales
+void console_signal_handler(int signum) {
+    struct RespuestaServidor respuesta;
+    resultado = read(pipe_especifico, &respuesta, sizeof(struct RespuestaServidor));
+    if (resultado > 0) {
+        // Obtener el tipo de respuesta asociado
+        switch (respuesta.tipo) {
+            case RESPUESTA:
+                printf("-> Usuario registrado correctamente");
+                printf("-> Id asociado: %d\n", respuesta.contenido.respuesta.codigo);
+                printf("-> Respuesta del servidor: %s\n", respuesta.contenido.respuesta.mensaje);
+                if (strcmp(respuesta.contenido.respuesta.mensaje, "A") == 0) {
+                    printf("Usuario no registrado correctamente");
+                }
+            break;
+
+            case MENSAJE:
+                printf("-> MSG: %s (Usuario %d): %s\n",respuesta.contenido.mensaje.nombre,respuesta.contenido.mensaje.origen,respuesta.contenido.mensaje.mensaje);
+            break;
+        }
+        fflush(stdout);
     }
+
 }
 
 int main(int argc, char **argv) {
+
+  signal(SIGUSR1, console_signal_handler);
 
   char *nomPipeManager = NULL;
   char nomPipeTalker[MAX_TAM];
@@ -72,6 +96,7 @@ int main(int argc, char **argv) {
 
   strcpy(datos.contenido.registro.nombre_pipe, nomPipeTalker);
 
+  datos.contenido.registro.pid = getpid();
 
   mkfifo (nomPipeManager, S_IRUSR | S_IWUSR);
   int pipe_servidor_general = open (nomPipeManager, O_WRONLY | O_NONBLOCK);// Aquí abrir el pipe (o tenerlo abierto previamente)
@@ -80,80 +105,37 @@ int main(int argc, char **argv) {
   unlink(nomPipeTalker);
   mkfifo (nomPipeTalker, S_IRUSR | S_IWUSR);
   // 2. Recibir la respuesta (O_NONBLOCK para hacerlo asíncrono (No bloqueante))
-  int pipe_especifico = open(nomPipeTalker, O_RDONLY | O_NONBLOCK);
+  pipe_especifico = open(nomPipeTalker, O_RDONLY | O_NONBLOCK);
 
   struct RespuestaServidor respuesta;
-  int resultado = 0; // Inicializar el resultado
   int salir = 0;
 
 
-int pipe_flags = fcntl(pipe_especifico, F_GETFL); // Get the current pipe flags
-pipe_flags |= O_NONBLOCK; // Add the non-blocking flag
-fcntl(pipe_especifico, F_SETFL, pipe_flags); // Set the modified flags
 
+    do {
 
+        char mensaje_envio[MAX_TAM];
+        fgets(mensaje_envio, MAX_TAM, stdin);
+        mensaje_envio[strcspn(mensaje_envio, "\n")] = '\0';
+        char command[10];
+        char string[10];
+        int number;
+        sscanf(mensaje_envio, "%s \"%[^\"]\" %d", command, string, &number);
 
-do {
-    resultado = read(pipe_especifico, &respuesta, sizeof(struct RespuestaServidor));
-    if (resultado > 0) {
-        // Handle the received data from the pipe
-        switch (respuesta.tipo) {
-            case RESPUESTA:
-                printf(" -> Id asociado: %d\n", respuesta.contenido.respuesta.codigo);
-                printf(" -> Respuesta del servidor: %s\n", respuesta.contenido.respuesta.mensaje);
-                if (strcmp(respuesta.contenido.respuesta.mensaje, "A") == 0) {
-                    printf("NO existo");
-                }
-            break;
+        if (strcmp(command, "sent") == 0)
+        {
+            struct PeticionCliente datos;
+            datos.tipo = MENSAJE_INDIVIDUAL;
+            datos.contenido.mensajeIndividual.origen = idTalker;
+            datos.contenido.mensajeIndividual.destino = number;
+            strcpy(datos.contenido.mensajeIndividual.mensaje, string);
+            strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
 
-            case MENSAJE:
-                printf(" -> El mensaje asociado es: %s\n",respuesta.contenido.mensaje.mensaje);
-                printf(" -> El mensaje te lo envió: %d\n",respuesta.contenido.mensaje.origen);
-            break;
+            write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
         }
-    }
-    else {
-        printf("Menu:\n");
-        printf("1. Option 1: Mensaje individual\n");
-        printf("2. Option 2\n");
-        int option;
-        printf("Select an option: ");
-
-        // Read from stdin without blocking
-        if (scanf("%d", &option) == 1) {
-            getchar(); // Consume the newline character
-
-            switch (option) {
-                case 1:
-                    printf("MENSAJE INDIVIDUAL: ");
-                    datos.tipo = MENSAJE_INDIVIDUAL;
-                    datos.contenido.mensajeIndividual.origen = idTalker;
-
-                    int idDestino;
-                    printf("Ingrese el id destino: ");
-                    scanf("%d", &idDestino);
-                    datos.contenido.mensajeIndividual.destino = idDestino;
-                    
-                    char mensajesA[MAX_TAM];
-                    printf("Ingrese el mensaje: ");
-                    fgets(mensajesA, MAX_TAM, stdin);
-                    mensajesA[strcspn(mensajesA, "\n")] = '\0';
-                    strcpy(datos.contenido.mensajeIndividual.mensaje, mensajesA);
-
-                    write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
-                    break;
-                case 2:
-                    // Option 2 logic
-                    break;
-                // ... handle other options ...
-                default:
-                    printf("Opción Inválida.\n");
-            }
-        }
-    }
-
+            
     fflush(stdout);
-} while (!salir);
+    } while (!salir);
 
   
 

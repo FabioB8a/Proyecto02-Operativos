@@ -20,6 +20,7 @@ struct Respuesta {
 struct Mensaje {
 	int origen;
 	int destino;
+	char nombre[MAX_TAM];
 	char mensaje[MAX_TAM];
 };
 

@@ -1,0 +1,3 @@
+¿Se debe informar al usuario que no se ha registrado correctamente? Como posee un pipe repetido ¿Cómo se podría comunicar ese aspecto?
+¿Cuál es el tamaño máximo de los grupos? LA cuestión es que como nos encontramos en C y es difícil crear arreglos dinámicos, no sabríamos cómo definir el tamaño máximo del arreglo.
+¿Cuándo se envía un mensaje asíncrono para un grupo se peude realizar un for por cada uno de los indices ya que estamos utilizando arreglos o debeemos buscar una manera de que se envíen todos de una vez?

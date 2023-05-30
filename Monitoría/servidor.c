@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #include "peticion.h"
 #include "respuesta.h"
@@ -54,6 +55,7 @@ int main(int argc, char **argv) {
   struct Cliente {
     int id;
     int fd_pipe;
+    int pid;
     char nombre_asociado[MAX_TAM];
   };
 
@@ -70,16 +72,24 @@ int main(int argc, char **argv) {
   int salir = 0;
   struct RespuestaServidor respuesta;
   int fd_destino;
-
+  printf("   ____   _   _      _       _____    _____  U _____ u   ____                 _   _     ____   \n");
+  printf("U /\"___| |'| |'| U  /\"\\  u  |_ \" _|  |_ \" _| \\| ___\"|/U |  _\"\\ u     ___     | \\ |\"| U /\"___|u\n");
+  printf("\\| | u  /| |_| |\\ \\/ _ \\/     | |      | |    |  _|\"   \\| |_) |/    |_\"_|   <|  \\| |>\\| |  _ / \n");
+  printf(" | |/__ U|  _  |u / ___ \\    /| |\\    /| |\\   | |___    |  _ <       | |    U| |\\  |u | |_| |  \n");
+  printf("  \\____| |_| |_| /_/   \\_\\  u |_|U   u |_|U   |_____|   |_| \\_\\    U/| |\\u   |_| \\_|   \\____|  \n");
+  printf(" _// \\\\  //   \\\\  \\\\    >>  _// \\\\_  _// \\\\_  <<   >>   //   \\\\_.-,_|___|_,-.||   \\\\,-._)(|_   \n");
+  printf("(__)(__)(_\") (\"_)(__)  (__)(__) (__)(__) (__)(__) (__) (__)  (__)\\_)-' '-(_/ (_\")  (_/(__)__)  \n");
+  printf("_______________________________________________________________________________________________\n");
+  printf("_________________________________________M A N A G E R_________________________________________\n");
   do {
     resultado = read(pipe_fd_general, &recibidos, sizeof(struct PeticionCliente));
-
+    struct RespuestaServidor respuesta;
     if (resultado > 0) {
       switch (recibidos.tipo) {
         case REGISTRO:
+          
           respuesta.tipo = RESPUESTA;
           respuesta.contenido.respuesta.codigo = recibidos.contenido.registro.idRegistro;
-          
           // Verificación de índice encontrado
           int indiceEncontrado = -1;
 
@@ -100,9 +110,11 @@ int main(int argc, char **argv) {
               mkfifo(recibidos.contenido.registro.nombre_pipe, S_IRUSR | S_IWUSR);
               fd_destino = open(recibidos.contenido.registro.nombre_pipe, O_WRONLY | O_NONBLOCK);
               nuevoCliente.fd_pipe = fd_destino;
+              nuevoCliente.pid = recibidos.contenido.registro.pid;
               arregloClientes[numCliente] = nuevoCliente;
-              write(fd_destino, &respuesta, sizeof(struct RespuestaServidor));
               numCliente++;
+              write(fd_destino, &respuesta, sizeof(struct RespuestaServidor));
+              kill(recibidos.contenido.registro.pid, SIGUSR1);
           }
           else{
             printf(" -> El usuario es repetido :(\n");
@@ -110,10 +122,13 @@ int main(int argc, char **argv) {
             mkfifo(recibidos.contenido.registro.nombre_pipe, S_IRUSR | S_IWUSR);
             fd_destino = open(recibidos.contenido.registro.nombre_pipe, O_WRONLY | O_NONBLOCK);
             write(fd_destino, &respuesta, sizeof(struct RespuestaServidor));
+            kill(recibidos.contenido.registro.pid, SIGUSR1);
           }
         break;
 
         case MENSAJE_INDIVIDUAL:
+
+          printf(" -> Mensaje individual\n");
           printf(" -> Esto es un mensaje individual\n");
           printf(" -> El id de origen: %d\n", recibidos.contenido.mensajeIndividual.origen);
           printf(" -> El id de destino: %d\n", recibidos.contenido.mensajeIndividual.destino);
@@ -121,15 +136,16 @@ int main(int argc, char **argv) {
           respuesta.contenido.mensaje.origen = recibidos.contenido.mensajeIndividual.origen;
           respuesta.contenido.mensaje.destino = recibidos.contenido.mensajeIndividual.destino;
           strcpy(respuesta.contenido.mensaje.mensaje,recibidos.contenido.mensajeIndividual.mensaje);
-
+          strcpy(respuesta.contenido.mensaje.nombre,recibidos.contenido.mensajeIndividual.nombre);
           indiceEncontrado = -1;
           for (int i = 0; i < numCliente; i++) {
-              if (arregloClientes[i].id == respuesta.contenido.mensaje.origen) {
+              if (arregloClientes[i].id == respuesta.contenido.mensaje.destino) {
                   indiceEncontrado = i;
                   break;
               }
           }
           write(arregloClientes[indiceEncontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
+          kill(arregloClientes[indiceEncontrado].pid, SIGUSR1);
         break;
 
         }
@@ -143,54 +159,4 @@ int main(int argc, char **argv) {
     fflush(stdout);
 } while (!salir);
 
-  // Leer el mensaje
-
-  // int client_destino;
-  
-
-  
-
-  
-  // switch (recibidos.tipo) {
-  // case MENSAJE_INDIVIDUAL:
-  //   // Qué hacer si la solicitud es enviar un mensaje individual??
-  //   printf("EL nombre del pipe de destino es es: %s",recibidos.contenido.mensajeIndividual.mensaje);
-    
-  //   // Crear la respuesta
-  //   struct RespuestaServidor respuesta;
-  //   respuesta.tipo = MENSAJE;
-  //   respuesta.contenido.mensaje.origen = recibidos.contenido.mensajeIndividual.origen;
-  //   respuesta.contenido.mensaje.destino = recibidos.contenido.mensajeIndividual.destino;
-  //   strcpy(respuesta.contenido.mensaje.mensaje, recibidos.contenido.mensajeIndividual.mensaje);
-
-  //   // Enviarle el mensaje
-  //   //write(fd_destino, &respuesta, sizeof(struct Respuesta));
-
-  //   break;
-
-  // case MENSAJE_GRUPAL:
-  //   recibidos.contenido.mensajeGrupal;
-  //   break;
-
-  // case CREACION_GRUPO:
-
-  //   break;
-
-  // case UNIR_GRUPO:
-  //   break;
-
-  // case DESCONEXION_GRUPO:
-  //   break;
-  // }
 }
-
-// // Buscar quién es el cliente destino?
-//     client_destino = recibidos.contenido.mensajeIndividual.destino;
-
-//     for (int i = 0; i < tam_maximo; i++) {
-//       if (arregloClientes[i].id == client_destino) {
-
-//         Guardar el pipe del cliente
-//         fd_destino = arregloClientes[i].fd_pipe;
-//       }
-//     }

@@ -18,12 +18,14 @@ enum TipoPeticion {
 
 struct Registro {
 	int idRegistro;
+	int pid;
 	char nombre_pipe[MAX_TAM];
 };
 
 struct MensajeIndividual {
 	int origen;
 	int destino;
+	char nombre[MAX_TAM];
 	char mensaje[MAX_TAM];
 };
 
