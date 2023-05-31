@@ -14,8 +14,7 @@ enum TipoPeticion {
 	CONSULTA_MENSAJE_INDIVIDUAL,
 	CONSULTA_CREACION_GRUPO,
 	CONSULTA_MENSAJE_GRUPAL,
-	UNIR_GRUPO,
-	DESCONEXION_GRUPO
+	SOLICITUD_SALIDA,
 };
 
 /// Tipos de mensaje que puedo enviar y sus estructuras
@@ -55,6 +54,10 @@ struct SolicitudMensajeGrupal {
 	char mensaje[MAX_TAM];
 };
 
+struct SolicitudSalida {
+	int solicitante;
+};
+
 struct UnirGrupo {
 	int solicitante;
 	int id_grupo;
@@ -73,6 +76,7 @@ union TipoContenido {
 	struct SolicitudMensajeIndividual mensajeIndividual;
 	struct SolicitudCreacionGrupo creacionGrupo;
 	struct SolicitudMensajeGrupal mensajeGrupal;
+	struct SolicitudSalida solicitudSalida;
 	struct UnirGrupo unirGrupo;
 	struct DesconexionGrupo desconexionGrupo;
 };

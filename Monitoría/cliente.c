@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "peticion.h"
 #include "respuesta.h"
@@ -21,11 +22,21 @@ volatile sig_atomic_t recibido_consola_signal = 0;
 int pipe_especifico = 0;
 int resultado = 0;
 char nomPipeTalker[MAX_TAM];
+int registro = 0;
 
 // Funcion de manejo de señales
 void console_signal_handler(int signum) {
     struct RespuestaServidor respuesta;
     resultado = read(pipe_especifico, &respuesta, sizeof(struct RespuestaServidor));
+    if (resultado == -1){
+      // No hay datos disponibles en el momento
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          
+      } else {
+          perror("Read: ");
+          exit(1);
+      }
+    }
     if (resultado > 0) {
         // Obtener el tipo de respuesta asociado
         switch (respuesta.tipo) {
@@ -33,13 +44,10 @@ void console_signal_handler(int signum) {
                 
                 printf("\n -> Id asociado: %d\n", respuesta.contenido.respuestaRegistro.codigo);
                 printf(" -> Respuesta del servidor: %s\n", respuesta.contenido.respuestaRegistro.mensaje);
-                if (strcmp(respuesta.contenido.respuestaRegistro.mensaje, "Usuario duplicado") == 0) {
+                if (strcmp(respuesta.contenido.respuestaRegistro.mensaje, "Usuario duplicado") == 0 || strcmp(respuesta.contenido.respuestaRegistro.mensaje, "Id inválido") == 0) {
                     printf(" -> Usuario no registrado correctamente\n");
                     unlink(nomPipeTalker);
-                    exit(0);
-                }
-                else {
-                    printf(" -> Usuario registrado correctamente\n");
+                    exit(1);
                 }
             break;
             case RESPUESTA_LISTAR_U:
@@ -53,7 +61,6 @@ void console_signal_handler(int signum) {
                         }
                         
                 }
-                printf("\n");
             break;
             case RESPUESTA_LISTAR_G:
                 if(respuesta.contenido.respuestaListarG.tam_maximo == -1){
@@ -81,6 +88,15 @@ void console_signal_handler(int signum) {
             case RESPUESTA_MENSAJE_GRUPAL:
                 printf(" -> GRP: (Usuario %d): %s\n",respuesta.contenido.mensajeGrupal.origen,respuesta.contenido.mensajeGrupal.mensaje);
             break;
+            case RESPUESTA_SALIDA:
+                printf(" -> RTASalida: %s\n",respuesta.contenido.mensajeSalida.mensaje);
+                printf(" -> Recuerda, tu numero de Id es: %d\n",respuesta.contenido.mensajeSalida.origen);
+                unlink(nomPipeTalker);
+                exit(0);
+            break;
+            case ERROR:
+                printf(" -> Error: %s\n",respuesta.contenido.error.mensaje);
+            break;
         }
         fflush(stdout);
     }
@@ -88,69 +104,90 @@ void console_signal_handler(int signum) {
 
 int main(int argc, char **argv) {
 
-  signal(SIGUSR1, console_signal_handler);
+    signal(SIGUSR1, console_signal_handler);
 
-  char *nomPipeManager = NULL;
-  int idTalker = 0;
+    char *nomPipeManager = NULL;
+    int idTalker = 0;
 
-  if (argc != 5)
-  {
-      printf(" -> Número inválido de argumentos.\n");
-      printf(" -> Recuerda: Uso correcto del ejecutable: ./Talker -i IDTalker -p nombrePipe\n");
-      exit(1);
-  }
+    if (argc != 5)
+    {
+        printf(" -> Número inválido de argumentos.\n");
+        printf(" -> Recuerda: Uso correcto del ejecutable: ./Talker -i IDTalker -p nombrePipe\n");
+        exit(1);
+    }
 
-  for (int i = 1; i < argc; i += 2)
-  {
-      if (strcmp(argv[i], "-i") == 0 && !idTalker)
-      {
-          idTalker = atoi(argv[i + 1]);
-      }
-      else if (strcmp(argv[i], "-p") == 0 && !nomPipeManager)
-      {
-          nomPipeManager = argv[i + 1];
-      }
-      else
-      {
-          printf(" -> Argumento inválido o repetido: %s.\n", argv[i]);
-          exit(1);
-      }
-  }
+    for (int i = 1; i < argc; i += 2)
+    {
+        if (strcmp(argv[i], "-i") == 0 && !idTalker)
+        {
+            idTalker = atoi(argv[i + 1]);
+        }
+        else if (strcmp(argv[i], "-p") == 0 && !nomPipeManager)
+        {
+            nomPipeManager = argv[i + 1];
+        }
+        else
+        {
+            printf(" -> Argumento inválido o repetido: %s.\n", argv[i]);
+            exit(1);
+        }
+    }
 
-  if (idTalker <= 0)
-  {
-      printf(" -> La cantidad de Talkers debe ser mayor a 0\n");
-      exit(1);
-  }
-  /// Proceso Cliente:
-  // Quiere enviar un mensaje a otro usuario
-  // 1. Armar el mensaje
+    if (idTalker <= 0)
+    {
+        printf(" -> La cantidad de Talkers debe ser mayor a 0\n");
+        exit(1);
+    }
 
-  struct PeticionCliente datos;
+    struct PeticionCliente datos;
 
-  datos.tipo = CONSULTA_REGISTRO;
-  datos.contenido.registro.idRegistro = idTalker;
-  printf(" -> Usted desea ingresar a Chattering...\n");
-  printf(" -> Por favor, ingresa el nombre de tu pipe: ");
+    datos.tipo = CONSULTA_REGISTRO;
+    datos.contenido.registro.idRegistro = idTalker;
+    printf(" -> Usted desea ingresar a Chattering...\n");
+    printf(" -> Por favor, ingresa el nombre de tu pipe: ");
 
-  fgets(nomPipeTalker, MAX_TAM, stdin);
-  nomPipeTalker[strcspn(nomPipeTalker, "\n")] = '\0';
+    fgets(nomPipeTalker, MAX_TAM, stdin);
+    nomPipeTalker[strcspn(nomPipeTalker, "\n")] = '\0';
 
-  strcpy(datos.contenido.registro.nombre_pipe, nomPipeTalker);
+    strcpy(datos.contenido.registro.nombre_pipe, nomPipeTalker);
 
-  datos.contenido.registro.pid = getpid();
+    datos.contenido.registro.pid = getpid();
 
-  mkfifo (nomPipeManager, S_IRUSR | S_IWUSR);
-  int pipe_servidor_general = open (nomPipeManager, O_WRONLY | O_NONBLOCK);// Aquí abrir el pipe (o tenerlo abierto previamente)
-  write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+    int pipe_servidor_general = open (nomPipeManager, O_WRONLY | O_NONBLOCK);// Aquí abrir el pipe (o tenerlo abierto previamente)
+    
+    if (pipe_servidor_general == -1){
+        perror("Open pipe_manager: ");
+        exit(1);
+    }
+    
+    if (write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+        perror("Write: ");
+        exit(1);
+    }
 
-  unlink(nomPipeTalker);
-  mkfifo (nomPipeTalker, S_IRUSR | S_IWUSR);
-  // 2. Recibir la respuesta (O_NONBLOCK para hacerlo asíncrono (No bloqueante))
-  pipe_especifico = open(nomPipeTalker, O_RDONLY | O_NONBLOCK);
+    if (access(nomPipeTalker, F_OK) == 0)
+    {
+        if (unlink(nomPipeTalker) == -1) {
+            perror("Unlink: ");
+            exit(1);
+        }
 
-  struct RespuestaServidor respuesta;
-  int salir = 0;
+    }
+
+    if (mkfifo (nomPipeTalker, S_IRUSR | S_IWUSR) == -1){
+        perror("Mkfifo: ");
+        exit(1);
+    }
+
+    pipe_especifico = open(nomPipeTalker, O_RDONLY | O_NONBLOCK);
+
+    if (pipe_especifico == -1){
+        perror("Open pipe_talker: ");
+        exit(1);
+    }
+
+    struct RespuestaServidor respuesta;
+    int salir = 0;
 
     printf("\n_______________________________________________________________________________________________\n");
     printf("_______________________________________________________________________________________________\n");
@@ -169,6 +206,7 @@ int main(int argc, char **argv) {
         char mensaje_envio[MAX_TAM];
         fgets(mensaje_envio, MAX_TAM, stdin);
         mensaje_envio[strcspn(mensaje_envio, "\n")] = '\0';
+        fflush(stdin);
 
         char command[10];
         char string[MAX_TAM] = "";
@@ -196,27 +234,33 @@ int main(int argc, char **argv) {
             strcpy(datos.contenido.mensajeIndividual.mensaje, mensaje);
             strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
 
-            write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+            if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                perror("Write: ");
+                exit(1);
+            }
         }
 
         else if (strcmp(command, "list") == 0)
         {
             if(isdigit(*string))
             {
-
                 datos.tipo = CONSULTA_LISTAR_G;
                 datos.contenido.solicitudListaG.solicitante = idTalker;
                 datos.contenido.solicitudListaG.id_grupo = atoi(string);
-
-                write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+                if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                    perror("Write: ");
+                    exit(1);
+                }
 
             }
             else if (strcmp(string, "") == 0){
-
                 datos.tipo = CONSULTA_LISTAR_U;
                 datos.contenido.solicitudListaU.solicitante = idTalker;
 
-                write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+                if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                    perror("Write: ");
+                    exit(1);
+                }
 
             }
             else {
@@ -231,10 +275,8 @@ int main(int argc, char **argv) {
             int id_grupo;
             int tamanio = 0;
 
-            // Extract the first integer
             sscanf(string, "%d", &id_grupo);
             
-            // Extract the array of integers
             char* token = strtok(string, " ");
             if (token != NULL) {
                 token = strtok(NULL, ",");
@@ -245,7 +287,10 @@ int main(int argc, char **argv) {
             }
             datos.contenido.creacionGrupo.id_grupo = id_grupo;
             datos.contenido.creacionGrupo.cantidad_integrantes = tamanio;
-            write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+            if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                perror("Write: ");
+                exit(1);
+            }
         }
 
         else if(strcmp(command, "sentgroup") == 0)
@@ -260,7 +305,25 @@ int main(int argc, char **argv) {
             datos.contenido.mensajeGrupal.grupo_destino = number;
             strcpy(datos.contenido.mensajeGrupal.mensaje,mensaje);
 
-            write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+            if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                perror("Write: ");
+                exit(1);
+            }
+        }
+
+        else if(strcmp(command, "salir") == 0)
+        {
+            datos.tipo = SOLICITUD_SALIDA;
+            datos.contenido.solicitudSalida.solicitante = idTalker;
+
+            if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                perror("Write: ");
+                exit(1);
+            }
+        }
+        else
+        {
+            printf(" -> Comando no encontrado\n");
         }
             
     fflush(stdout);
