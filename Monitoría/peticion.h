@@ -9,6 +9,8 @@
 
 enum TipoPeticion {
 	CONSULTA_REGISTRO,
+	CONSULTA_LISTAR_U,
+	CONSULTA_LISTAR_G,
 	CONSULTA_MENSAJE_INDIVIDUAL,
 	CONSULTA_CREACION_GRUPO,
 	CONSULTA_MENSAJE_GRUPAL,
@@ -22,6 +24,15 @@ struct SolicitudRegistro {
 	int idRegistro;
 	int pid;
 	char nombre_pipe[MAX_TAM];
+};
+
+struct SolicitudListaU {
+	int solicitante;
+};
+
+struct SolicitudListaG {
+	int solicitante;
+	int id_grupo;
 };
 
 struct SolicitudMensajeIndividual {
@@ -57,6 +68,8 @@ struct DesconexionGrupo {
 /// Unión con todos los tipos de mensaje
 union TipoContenido {
 	struct SolicitudRegistro registro;
+	struct SolicitudListaU solicitudListaU;
+	struct SolicitudListaG solicitudListaG;
 	struct SolicitudMensajeIndividual mensajeIndividual;
 	struct SolicitudCreacionGrupo creacionGrupo;
 	struct SolicitudMensajeGrupal mensajeGrupal;

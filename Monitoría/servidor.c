@@ -146,6 +146,70 @@ int main(int argc, char **argv) {
           }
         break;
 
+        case CONSULTA_LISTAR_U:
+          respuesta.tipo = RESPUESTA_LISTAR_U;
+          printf("\n -> Solicitud Listar Usuarios Conectados\n");
+          printf(" -> El usuario que solicita el servicio es: %d\n",recibidos.contenido.solicitudListaU.solicitante);
+
+          // Verificación de índice encontrado
+          indice_encontrado = -1;
+          for (int i = 0; i < numCliente; i++) {
+              if (arregloClientes[i].id == recibidos.contenido.solicitudListaU.solicitante) {
+                  indice_encontrado = i;
+                  break;
+              }
+          }
+          respuesta.contenido.respuestaListarU.tam_maximo = numCliente;
+          for (int i=0; i<numCliente; i++){
+            respuesta.contenido.respuestaListarU.conectados[i] = arregloClientes[i].id;
+          }
+          write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
+          kill(arregloClientes[indice_encontrado].pid, SIGUSR1);
+        break;
+
+        case CONSULTA_LISTAR_G:
+          respuesta.tipo = RESPUESTA_LISTAR_G;
+          printf("\n -> Solicitud Listar Integrantes Grupo\n");
+          printf(" -> El usuario que solicita el servicio es: %d\n",recibidos.contenido.solicitudListaG.solicitante);
+          printf(" -> El grupo consultado es: G%d\n",recibidos.contenido.solicitudListaG.id_grupo);
+          printf(" -> numGrupo: %d\n", numGrupo);
+          // Búsqueda de grupo
+          indice_grupo_encontrado = -1;
+          for (int i= 0; i< numGrupo; i++){
+            printf(" -> ID: %d\n", arregloGrupos[i].id_grupo );
+            if(arregloGrupos[i].id_grupo == recibidos.contenido.solicitudListaG.id_grupo){
+              indice_grupo_encontrado = i;
+              break;
+            }
+          }
+
+          // Verificación de índice encontrado
+          indice_encontrado = -1;
+          for (int i = 0; i < numCliente; i++) {
+              if (arregloClientes[i].id == recibidos.contenido.solicitudListaG.solicitante) {
+                  indice_encontrado = i;
+                  break;
+              }
+          }
+          if(indice_grupo_encontrado == -1){
+            printf(" -> Indice NO encontrado, el grupo no existe\n");
+            respuesta.contenido.respuestaListarG.tam_maximo = -1;
+            write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
+            kill(arregloClientes[indice_encontrado].pid, SIGUSR1);
+          }
+          else{
+            printf(" -> Grupo encontrado exitosamente\n");
+            respuesta.contenido.respuestaListarG.tam_maximo = arregloGrupos[indice_encontrado].cantidad_clientes;
+            for (int i=0; i< respuesta.contenido.respuestaListarG.tam_maximo; i++){
+              respuesta.contenido.respuestaListarG.integrantes[i] = arregloClientes[arregloGrupos[indice_encontrado].id_clientes[i]].id;
+              printf("\nIntegrantes: %d \n", respuesta.contenido.respuestaListarG.integrantes[i]);
+            }
+            write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
+            kill(arregloClientes[indice_encontrado].pid, SIGUSR1);
+          }
+
+        break;
+
         case CONSULTA_MENSAJE_INDIVIDUAL:
 
           printf("\n -> Mensaje individual\n");
@@ -176,7 +240,7 @@ int main(int argc, char **argv) {
           printf("\n -> Solicitud creación grupo\n");
           printf(" -> El id del solicitante es: %d\n", recibidos.contenido.creacionGrupo.solicitante);
           printf(" -> El id del grupo a crear es: %d\n", recibidos.contenido.creacionGrupo.id_grupo);
-
+          
           // Búsqueda de grupo
           indice_grupo_encontrado = -1;
           for (int i= 0; i< numGrupo; i++){
@@ -232,12 +296,12 @@ int main(int argc, char **argv) {
           if (creacion_exitosa == 1){
             arregloGrupos[numGrupo] = nuevoGrupo;
             numGrupo++;
-            printf(" -> Grupo %d agregado exitosamente",nuevoGrupo.id_grupo);
+            printf(" -> Grupo %d agregado exitosamente\n",nuevoGrupo.id_grupo);
             strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo exitosa");
             write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
             kill(arregloClientes[indice_encontrado].pid, SIGUSR1);
           } else {
-            printf(" -> Ocurrió un problema a la hora de crear el grupo");
+            printf(" -> Ocurrió un problema a la hora de crear el grupo\n");
             strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo  no exitosa");
             write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
             kill(arregloClientes[indice_encontrado].pid, SIGUSR1);

@@ -7,9 +7,12 @@
 
 enum TipoRespuesta {
 	RESPUESTA_REGISTRO,
+	RESPUESTA_LISTAR_U,
+	RESPUESTA_LISTAR_G,
 	RESPUESTA_MENSAJE_INDIVIDUAL,
 	RESPUESTA_CREACION_GRUPO,
 	RESPUESTA_MENSAJE_GRUPAL,
+
 };
 
 /// Tipos de mensaje que puedo enviar y sus estructuras
@@ -17,6 +20,16 @@ enum TipoRespuesta {
 struct RespuestaRegistro {
 	int codigo;
 	char mensaje[MAX_TAM];
+};
+
+struct RespuestaListarU {
+	int conectados[MAX_TAM];
+	int tam_maximo;
+};
+
+struct RespuestaListarG {
+	int integrantes[MAX_TAM];
+	int tam_maximo;
 };
 
 struct RespuestaMensajeIndividual {
@@ -39,6 +52,8 @@ struct RespuestaMensajeGrupal {
 /// Unión con todos los tipos de mensaje
 union TipoContenidoRespuesta {
 	struct RespuestaRegistro respuestaRegistro;
+	struct RespuestaListarU respuestaListarU;
+	struct RespuestaListarG respuestaListarG;
 	struct RespuestaMensajeIndividual mensajeIndividual;
 	struct RespuestaCreacionGrupo creacionGrupo;
 	struct RespuestaMensajeGrupal mensajeGrupal;

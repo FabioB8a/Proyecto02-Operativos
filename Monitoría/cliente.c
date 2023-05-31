@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <ctype.h>
 
 #include "peticion.h"
 #include "respuesta.h"
@@ -41,7 +42,35 @@ void console_signal_handler(int signum) {
                     printf(" -> Usuario registrado correctamente\n");
                 }
             break;
-
+            case RESPUESTA_LISTAR_U:
+                printf(" -> Listar usuarios conectados: ");
+                for(int i=0; i<respuesta.contenido.respuestaListarU.tam_maximo; i++){
+                        if (i == respuesta.contenido.respuestaListarU.tam_maximo - 1){
+                            printf("U(%d)\n",respuesta.contenido.respuestaListarU.conectados[i]);
+                        }
+                        else{
+                            printf("U(%d),",respuesta.contenido.respuestaListarU.conectados[i]);
+                        }
+                        
+                }
+                printf("\n");
+            break;
+            case RESPUESTA_LISTAR_G:
+                if(respuesta.contenido.respuestaListarG.tam_maximo == -1){
+                    printf(" -> El grupo NO existe\n");
+                }
+                else{
+                    printf(" -> Listar usuarios del grupo: ");
+                    for(int i=0; i<respuesta.contenido.respuestaListarG.tam_maximo; i++){
+                         if (i == respuesta.contenido.respuestaListarU.tam_maximo - 1){
+                            printf("G(%d)\n",respuesta.contenido.respuestaListarG.integrantes[i]);
+                        }
+                        else{
+                            printf("G(%d),",respuesta.contenido.respuestaListarG.integrantes[i]);
+                        }
+                    }
+                }
+            break;
             case RESPUESTA_MENSAJE_INDIVIDUAL:
                 printf(" -> MSG: %s (Usuario %d): %s\n",respuesta.contenido.mensajeIndividual.nombre,respuesta.contenido.mensajeIndividual.origen,respuesta.contenido.mensajeIndividual.mensaje);
             break;
@@ -142,7 +171,7 @@ int main(int argc, char **argv) {
         mensaje_envio[strcspn(mensaje_envio, "\n")] = '\0';
 
         char command[10];
-        char string[MAX_TAM];
+        char string[MAX_TAM] = "";
 
         char* token = strtok(mensaje_envio, " ");
         if (token != NULL) {
@@ -168,6 +197,31 @@ int main(int argc, char **argv) {
             strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
 
             write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+        }
+
+        else if (strcmp(command, "list") == 0)
+        {
+            if(isdigit(*string))
+            {
+
+                datos.tipo = CONSULTA_LISTAR_G;
+                datos.contenido.solicitudListaG.solicitante = idTalker;
+                datos.contenido.solicitudListaG.id_grupo = atoi(string);
+
+                write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+
+            }
+            else if (strcmp(string, "") == 0){
+
+                datos.tipo = CONSULTA_LISTAR_U;
+                datos.contenido.solicitudListaU.solicitante = idTalker;
+
+                write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+
+            }
+            else {
+                printf(" -> Comando incorrecto\n");
+            }
         }
 
         else if(strcmp(command, "group") == 0)
