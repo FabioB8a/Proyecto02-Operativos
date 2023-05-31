@@ -82,7 +82,6 @@ void console_signal_handler(int signum) {
                 printf(" -> MSG: %s (Usuario %d): %s\n",respuesta.contenido.mensajeIndividual.nombre,respuesta.contenido.mensajeIndividual.origen,respuesta.contenido.mensajeIndividual.mensaje);
             break;
             case RESPUESTA_CREACION_GRUPO:
-                printf(" -> El grupo %d ha sido creado exitosamente\n", respuesta.contenido.creacionGrupo.id_grupo);
                 printf(" -> El mensaje es: %s\n",respuesta.contenido.creacionGrupo.mensaje);
             break;
             case RESPUESTA_MENSAJE_GRUPAL:
@@ -165,14 +164,14 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    if (access(nomPipeTalker, F_OK) == 0)
-    {
-        if (unlink(nomPipeTalker) == -1) {
-            perror("Unlink: ");
-            exit(1);
-        }
+    // if (access(nomPipeTalker, F_OK) == 0)
+    // {
+    //     if (unlink(nomPipeTalker) == -1) {
+    //         perror("Unlink: ");
+    //         exit(1);
+    //     }
 
-    }
+    // }
 
     if (mkfifo (nomPipeTalker, S_IRUSR | S_IWUSR) == -1){
         perror("Mkfifo: ");

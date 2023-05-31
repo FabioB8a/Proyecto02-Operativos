@@ -17,6 +17,7 @@
 #define MAX_TAM_POR_GRUPO 20
 
 // TOCA HACER TODOS LOS PERROR
+void enviar_mensaje(struct RespuestaServidor respuesta, char* nombre_pipe, int pID);
 
 int main(int argc, char **argv) {
 
@@ -111,6 +112,7 @@ int main(int argc, char **argv) {
   struct RespuestaServidor respuesta;
   int fd_destino;
   int indice_encontrado = -1;
+  int pipe_encontrado = -1;
   int indice_grupo_encontrado = -1;
   int creacion_exitosa = 1;
 
@@ -146,133 +148,76 @@ int main(int argc, char **argv) {
           respuesta.contenido.respuestaRegistro.codigo = recibidos.contenido.registro.idRegistro;
 
           indice_encontrado = -1;
+          pipe_encontrado = -1;
           for (int i = 0; i < numCliente; i++) {
-              if (arregloClientes[i].id == recibidos.contenido.registro.idRegistro || strcmp(arregloClientes[i].nombre_asociado,recibidos.contenido.registro.nombre_pipe) == 0) {
+              if (arregloClientes[i].id == recibidos.contenido.registro.idRegistro) {
                   indice_encontrado = i;
-                  break;
+              }
+              if(strcmp(arregloClientes[i].nombre_asociado,recibidos.contenido.registro.nombre_pipe) == 0){
+                  pipe_encontrado = i;
               }
           }
 
           printf("\n -> Registro\n");
-          if (indice_encontrado == -1) {
-              if(recibidos.contenido.registro.idRegistro < 1 || recibidos.contenido.registro.idRegistro > tam_maximo)
+          // Pipe repetido (No se envía mensaje ya que en el cliente se mata el proceso)
+          if (pipe_encontrado != -1 && infoConexion[indice_encontrado] == 1){ 
+            printf(" -> Pipe repetido\n");
+            printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
+            printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
+          }
+          // En caso de que no exista pipe repetido
+          else {
+            // NO existe el índice
+            if (indice_encontrado == -1) {
+                // No es válido
+                if(recibidos.contenido.registro.idRegistro < 1 || recibidos.contenido.registro.idRegistro > tam_maximo)
+                {
+                  printf(" -> Id Inválido, debe ser mayor o igual a 1 y menor o igual a %d\n",tam_maximo);
+                  printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
+                  printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
+                  strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Id inválido");
+                }
+                // Registro
+                else {
+                  printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
+                  printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
+                  strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Agregado correctamente");
+                  struct Cliente nuevoCliente;
+                  nuevoCliente.id = recibidos.contenido.registro.idRegistro;
+                  strcpy(nuevoCliente.nombre_asociado, recibidos.contenido.registro.nombre_pipe);
+                  nuevoCliente.pid = recibidos.contenido.registro.pid;
+                  arregloClientes[numCliente] = nuevoCliente;
+                  infoConexion[numCliente] = 1;
+                  numCliente++;
+                }
+            }
+            // ID repetido
+            else{
+              // Desconectado (Encontra el indice y está desconectado)
+              if (indice_encontrado != -1  &&  infoConexion[indice_encontrado] == -1)
               {
-                printf(" -> Id Inválido, debe ser mayor o igual a 1 y menor o igual a %d\n",tam_maximo);
-                printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
+                printf(" -> Reinicio de conexión\n");
+                printf(" -> El nuevo nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
                 printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
-                strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Id inválido");
-                
-                sleep(1);
-                fd_destino = open(recibidos.contenido.registro.nombre_pipe, O_WRONLY | O_NONBLOCK);
-                if (fd_destino == -1){
-                  perror("Open: ");
-                  exit(1);
-                }
-                if(write(fd_destino, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-                  perror("Write: ");
-                  exit(1);
-                }
-                if(kill(recibidos.contenido.registro.pid, SIGUSR1) == -1){
-                  perror("Kill: ");
-                  exit(1);
-                }
-                if (close(fd_destino) == -1){
-                perror("Close: ");
-                exit(1);
-                }
-              }
-              else {
-                printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
-                printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
-                strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Agregado correctamente");
-                struct Cliente nuevoCliente;
-                nuevoCliente.id = recibidos.contenido.registro.idRegistro;
-                strcpy(nuevoCliente.nombre_asociado, recibidos.contenido.registro.nombre_pipe);
-                nuevoCliente.pid = recibidos.contenido.registro.pid;
-                sleep(1);
-                
-                arregloClientes[numCliente] = nuevoCliente;
+                strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Usuario reconectado");
+                strcpy(arregloClientes[indice_encontrado].nombre_asociado, recibidos.contenido.registro.nombre_pipe);
+                arregloClientes[indice_encontrado].pid = recibidos.contenido.registro.pid;
                 infoConexion[numCliente] = 1;
-                numCliente++;
+              }
 
-                fd_destino = open(recibidos.contenido.registro.nombre_pipe, O_WRONLY | O_NONBLOCK);
-                if (fd_destino == -1){
-                  perror("Open: ");
-                  exit(1);
-                }
-
-                nuevoCliente.fd_pipe = fd_destino;
-                
-                if(write(fd_destino, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-                  perror("Write: ");
-                  exit(1);
-                }
-                if(kill(recibidos.contenido.registro.pid, SIGUSR1) == -1){
-                  perror("Kill: ");
-                  exit(1);
-                }
-                if (close(fd_destino) == -1){
-                perror("Close: ");
-                exit(1);
-                }
-              }
-          }
-          else{
-            if (infoConexion[indice_encontrado] == -1)
-            {
-              printf(" -> Reinicio de conexión\n");
-              printf(" -> El nuevo nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
-              printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
-              strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Usuario reconectado");
-              strcpy(arregloClientes[indice_encontrado].nombre_asociado, recibidos.contenido.registro.nombre_pipe);
-              arregloClientes[indice_encontrado].pid = recibidos.contenido.registro.pid;
-              infoConexion[numCliente] = 1;
-              sleep(1);
-              fd_destino = open(recibidos.contenido.registro.nombre_pipe, O_WRONLY | O_NONBLOCK);
-              arregloClientes[indice_encontrado].fd_pipe = fd_destino;
-              if (fd_destino == -1){
-                  perror("Open: ");
-                  exit(1);
-              }
-              if(write(fd_destino, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-                  perror("Write: ");
-                  exit(1);
-              }
-              if(kill(recibidos.contenido.registro.pid, SIGUSR1) == -1){
-                  perror("Kill: ");
-                  exit(1);
-              }
-              if (close(fd_destino) == -1){
-                perror("Close: ");
-                exit(1);
-                }
-            }
-            else
-            {
-              printf(" -> Usuario repetido\n");
-              printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
-              printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
-              strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Usuario duplicado");
-              sleep(1);
-              fd_destino = open(recibidos.contenido.registro.nombre_pipe, O_WRONLY | O_NONBLOCK);
-              if (fd_destino == -1){
-                  perror("Open: ");
-                  exit(1);
-              }
-              if(write(fd_destino, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-                  perror("Write: ");
-                  exit(1);
-              }
-              if(kill(recibidos.contenido.registro.pid, SIGUSR1) == -1){
-                  perror("Kill: ");
-                  exit(1);
-              }
-              if (close(fd_destino) == -1){
-                perror("Close: ");
-                exit(1);
+              // Conectado actualmente
+              else
+              {
+                printf(" -> Usuario repetido\n");
+                printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
+                printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
+                strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Usuario duplicado");
               }
             }
+            sleep(1);
+            enviar_mensaje(respuesta,recibidos.contenido.registro.nombre_pipe,recibidos.contenido.registro.pid);
           }
+
 
         break;
 
@@ -294,24 +239,7 @@ int main(int argc, char **argv) {
           for (int i=0; i<numCliente; i++){
             respuesta.contenido.respuestaListarU.conectados[i] = arregloClientes[i].id;
           }
-
-          fd_destino = open(recibidos.contenido.registro.nombre_pipe, O_WRONLY | O_NONBLOCK);
-          if (fd_destino == -1){
-            perror("Open: ");
-            exit(1);
-          }
-          if(write(fd_destino, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-            perror("Write: ");
-            exit(1);
-          }
-          if(kill(arregloClientes[indice_encontrado].pid, SIGUSR1) == -1){
-            perror("Kill: ");
-            exit(1);
-          }
-          if (close(fd_destino) == -1){
-          perror("Close: ");
-          exit(1);
-          }
+          enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
 
         break;
 
@@ -344,31 +272,14 @@ int main(int argc, char **argv) {
           if(indice_grupo_encontrado == -1){
             printf(" -> Indice NO encontrado, el grupo no existe\n");
             respuesta.contenido.respuestaListarG.tam_maximo = -1;
-            if(write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-            perror("Write: ");
-            exit(1);
-            }
-            if(kill(arregloClientes[indice_encontrado].pid, SIGUSR1) == -1){
-              perror("Kill: ");
-              exit(1);
-            }
           }
           else{
             respuesta.contenido.respuestaListarG.tam_maximo = arregloGrupos[indice_grupo_encontrado].cantidad_clientes;
             for (int i=0; i< respuesta.contenido.respuestaListarG.tam_maximo; i++){
               respuesta.contenido.respuestaListarG.integrantes[i] = arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[i]].id;
-              printf("\nIntegrantes: %d \n", respuesta.contenido.respuestaListarG.integrantes[i]);
-            }
-            if(write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-            perror("Write: ");
-            exit(1);
-            }
-            if(kill(arregloClientes[indice_encontrado].pid, SIGUSR1) == -1){
-              perror("Kill: ");
-              exit(1);
             }
           }
-
+          enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
         break;
 
         case CONSULTA_MENSAJE_INDIVIDUAL:
@@ -389,15 +300,7 @@ int main(int argc, char **argv) {
               }
           }
           if(indice_encontrado != -1){
-            if(write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-              perror("Write: ");
-              exit(1);
-            }
-            
-            if(kill(arregloClientes[indice_encontrado].pid, SIGUSR1) == -1){
-              perror("Kill: ");
-              exit(1);
-            }
+            enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           }
           else{
             indice_encontrado = -1;
@@ -406,17 +309,10 @@ int main(int argc, char **argv) {
                   indice_encontrado = i;
                   break;
             }
-            respuesta.tipo = ERROR;
-            strcpy(respuesta.contenido.error.mensaje, "Usuario inválido");
-            if(write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor)) == -1){
-            perror("Write: ");
-            exit(1);
-            }
-            if(kill(arregloClientes[indice_encontrado].pid, SIGUSR1) == -1){
-              perror("Kill: ");
-              exit(1);
-            }
           }
+          respuesta.tipo = ERROR;
+          strcpy(respuesta.contenido.error.mensaje, "Usuario inválido");
+          enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           }
 
         break;
@@ -488,13 +384,11 @@ int main(int argc, char **argv) {
             numGrupo++;
             printf(" -> Grupo %d agregado exitosamente\n",nuevoGrupo.id_grupo);
             strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo exitosa");
-            write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
-            kill(arregloClientes[indice_encontrado].pid, SIGUSR1);
+            enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           } else {
             printf(" -> Ocurrió un problema a la hora de crear el grupo\n");
             strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo  no exitosa");
-            write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
-            kill(arregloClientes[indice_encontrado].pid, SIGUSR1);
+            enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           }
 
         break;
@@ -517,11 +411,22 @@ int main(int argc, char **argv) {
             respuesta.contenido.mensajeGrupal.origen = recibidos.contenido.mensajeGrupal.origen;
             strcpy(respuesta.contenido.mensajeGrupal.mensaje,recibidos.contenido.mensajeGrupal.mensaje);
             for(int j = 0; j<arregloGrupos[indice_grupo_encontrado].cantidad_clientes; j++){
-              write(arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
-              kill(arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].pid, SIGUSR1);
+              enviar_mensaje(respuesta,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].nombre_asociado,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].pid);
             }
           }
-
+          else {
+            // Búsqueda de creador
+            indice_encontrado = -1;
+            for (int i = 0; i < numCliente; i++) {
+                if (arregloClientes[i].id == recibidos.contenido.mensajeGrupal.origen) {
+                    indice_encontrado = i;
+                    break;
+            }
+            }
+            respuesta.tipo = ERROR;
+            strcpy(respuesta.contenido.error.mensaje, "Grupo inválido");
+            enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
+          }
         break;
 
         case SOLICITUD_SALIDA:
@@ -537,8 +442,7 @@ int main(int argc, char **argv) {
           infoConexion[indice_encontrado] = -1;
           respuesta.contenido.mensajeSalida.origen = recibidos.contenido.solicitudSalida.solicitante;
           strcpy(respuesta.contenido.mensajeSalida.mensaje, "Ha logrado salir correctamente, datos almacenados");
-          write(arregloClientes[indice_encontrado].fd_pipe, &respuesta, sizeof(struct RespuestaServidor));
-          kill(arregloClientes[indice_encontrado].pid, SIGUSR1);
+          enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
 
         break;
         
@@ -550,4 +454,24 @@ int main(int argc, char **argv) {
 close(pipe_fd_general);
 }
 
-//void enviar_mensaje(struct PeticionCliente recibidos)
+void enviar_mensaje(struct RespuestaServidor respuesta, char* nombre_pipe, int pID)
+{
+  int file_descriptor;
+  file_descriptor = open(nombre_pipe, O_WRONLY | O_NONBLOCK);
+  if (file_descriptor == -1){
+    perror("Open: ");
+    exit(1);
+  }
+  if(write(file_descriptor, &respuesta, sizeof(struct RespuestaServidor)) == -1){
+    perror("Write: ");
+    exit(1);
+  }
+  if(kill(pID, SIGUSR1) == -1){
+    perror("Kill: ");
+    exit(1);
+  }
+  if (close(file_descriptor) == -1){
+  perror("Close: ");
+  exit(1);
+  }
+}
