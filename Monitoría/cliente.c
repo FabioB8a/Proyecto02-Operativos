@@ -16,8 +16,10 @@
 
 // Variables globales para indicar eventos de entrada
 volatile sig_atomic_t recibido_consola_signal = 0;
+
 int pipe_especifico = 0;
 int resultado = 0;
+char nomPipeTalker[MAX_TAM];
 
 // Funcion de manejo de señales
 void console_signal_handler(int signum) {
@@ -26,22 +28,33 @@ void console_signal_handler(int signum) {
     if (resultado > 0) {
         // Obtener el tipo de respuesta asociado
         switch (respuesta.tipo) {
-            case RESPUESTA:
-                printf("-> Usuario registrado correctamente");
-                printf("-> Id asociado: %d\n", respuesta.contenido.respuesta.codigo);
-                printf("-> Respuesta del servidor: %s\n", respuesta.contenido.respuesta.mensaje);
-                if (strcmp(respuesta.contenido.respuesta.mensaje, "A") == 0) {
-                    printf("Usuario no registrado correctamente");
+            case RESPUESTA_REGISTRO:
+                
+                printf("\n -> Id asociado: %d\n", respuesta.contenido.respuestaRegistro.codigo);
+                printf(" -> Respuesta del servidor: %s\n", respuesta.contenido.respuestaRegistro.mensaje);
+                if (strcmp(respuesta.contenido.respuestaRegistro.mensaje, "Usuario duplicado") == 0) {
+                    printf(" -> Usuario no registrado correctamente\n");
+                    unlink(nomPipeTalker);
+                    exit(0);
+                }
+                else {
+                    printf(" -> Usuario registrado correctamente\n");
                 }
             break;
 
-            case MENSAJE:
-                printf("-> MSG: %s (Usuario %d): %s\n",respuesta.contenido.mensaje.nombre,respuesta.contenido.mensaje.origen,respuesta.contenido.mensaje.mensaje);
+            case RESPUESTA_MENSAJE_INDIVIDUAL:
+                printf(" -> MSG: %s (Usuario %d): %s\n",respuesta.contenido.mensajeIndividual.nombre,respuesta.contenido.mensajeIndividual.origen,respuesta.contenido.mensajeIndividual.mensaje);
+            break;
+            case RESPUESTA_CREACION_GRUPO:
+                printf(" -> El grupo %d ha sido creado exitosamente\n", respuesta.contenido.creacionGrupo.id_grupo);
+                printf(" -> El mensaje es: %s\n",respuesta.contenido.creacionGrupo.mensaje);
+            break;
+            case RESPUESTA_MENSAJE_GRUPAL:
+                printf(" -> GRP: (Usuario %d): %s\n",respuesta.contenido.mensajeGrupal.origen,respuesta.contenido.mensajeGrupal.mensaje);
             break;
         }
         fflush(stdout);
     }
-
 }
 
 int main(int argc, char **argv) {
@@ -49,7 +62,6 @@ int main(int argc, char **argv) {
   signal(SIGUSR1, console_signal_handler);
 
   char *nomPipeManager = NULL;
-  char nomPipeTalker[MAX_TAM];
   int idTalker = 0;
 
   if (argc != 5)
@@ -87,9 +99,10 @@ int main(int argc, char **argv) {
 
   struct PeticionCliente datos;
 
-  datos.tipo = REGISTRO;
+  datos.tipo = CONSULTA_REGISTRO;
   datos.contenido.registro.idRegistro = idTalker;
-  printf(" -> Por favor, ingresa el nombre de tu pipe: \n");
+  printf(" -> Usted desea ingresar a Chattering...\n");
+  printf(" -> Por favor, ingresa el nombre de tu pipe: ");
 
   fgets(nomPipeTalker, MAX_TAM, stdin);
   nomPipeTalker[strcspn(nomPipeTalker, "\n")] = '\0';
@@ -110,26 +123,88 @@ int main(int argc, char **argv) {
   struct RespuestaServidor respuesta;
   int salir = 0;
 
-
+    printf("\n_______________________________________________________________________________________________\n");
+    printf("_______________________________________________________________________________________________\n");
+    printf("   ____   _   _      _       _____    _____  U _____ u   ____                 _   _     ____   \n");
+    printf("U /\"___| |'| |'| U  /\"\\  u  |_ \" _|  |_ \" _| \\| ___\"|/U |  _\"\\ u     ___     | \\ |\"| U /\"___|u\n");
+    printf("\\| | u  /| |_| |\\ \\/ _ \\/     | |      | |    |  _|\"   \\| |_) |/    |_\"_|   <|  \\| |>\\| |  _ / \n");
+    printf(" | |/__ U|  _  |u / ___ \\    /| |\\    /| |\\   | |___    |  _ <       | |    U| |\\  |u | |_| |  \n");
+    printf("  \\____| |_| |_| /_/   \\_\\  u |_|U   u |_|U   |_____|   |_| \\_\\    U/| |\\u   |_| \\_|   \\____|  \n");
+    printf(" _// \\\\  //   \\\\  \\\\    >>  _// \\\\_  _// \\\\_  <<   >>   //   \\\\_.-,_|___|_,-.||   \\\\,-._)(|_   \n");
+    printf("(__)(__)(_\") (\"_)(__)  (__)(__) (__)(__) (__)(__) (__) (__)  (__)\\_)-' '-(_/ (_\")  (_/(__)__)  \n");
+    printf("_______________________________________________________________________________________________\n");
+    printf("__________________________________________T A L K E R__________________________________________\n");
 
     do {
 
         char mensaje_envio[MAX_TAM];
         fgets(mensaje_envio, MAX_TAM, stdin);
         mensaje_envio[strcspn(mensaje_envio, "\n")] = '\0';
+
         char command[10];
-        char string[10];
-        int number;
-        sscanf(mensaje_envio, "%s \"%[^\"]\" %d", command, string, &number);
+        char string[MAX_TAM];
+
+        char* token = strtok(mensaje_envio, " ");
+        if (token != NULL) {
+            strcpy(command, token);
+        }
+
+        token = strtok(NULL, "'");
+        if (token != NULL) {
+            strcpy(string, token);
+        }
 
         if (strcmp(command, "sent") == 0)
         {
-            struct PeticionCliente datos;
-            datos.tipo = MENSAJE_INDIVIDUAL;
+            char mensaje[MAX_TAM];
+            int number;
+
+            sscanf(string, "\"%[^\"]\" %d", mensaje, &number);
+
+            datos.tipo = CONSULTA_MENSAJE_INDIVIDUAL;
             datos.contenido.mensajeIndividual.origen = idTalker;
             datos.contenido.mensajeIndividual.destino = number;
-            strcpy(datos.contenido.mensajeIndividual.mensaje, string);
+            strcpy(datos.contenido.mensajeIndividual.mensaje, mensaje);
             strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
+
+            write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+        }
+
+        else if(strcmp(command, "group") == 0)
+        {
+            datos.tipo = CONSULTA_CREACION_GRUPO;
+            datos.contenido.creacionGrupo.solicitante = idTalker;
+            int id_grupo;
+            int tamanio = 0;
+
+            // Extract the first integer
+            sscanf(string, "%d", &id_grupo);
+            
+            // Extract the array of integers
+            char* token = strtok(string, " ");
+            if (token != NULL) {
+                token = strtok(NULL, ",");
+                while (token != NULL) {
+                    datos.contenido.creacionGrupo.integrantes[tamanio++] = atoi(token);
+                    token = strtok(NULL, ",");
+                }
+            }
+            datos.contenido.creacionGrupo.id_grupo = id_grupo;
+            datos.contenido.creacionGrupo.cantidad_integrantes = tamanio;
+            write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
+        }
+
+        else if(strcmp(command, "sentgroup") == 0)
+        {
+            char mensaje[MAX_TAM];
+            int number;
+
+            sscanf(string, "\"%[^\"]\" %d", mensaje, &number);
+
+            datos.tipo = CONSULTA_MENSAJE_GRUPAL;
+            datos.contenido.mensajeGrupal.origen = idTalker;
+            datos.contenido.mensajeGrupal.grupo_destino = number;
+            strcpy(datos.contenido.mensajeGrupal.mensaje,mensaje);
 
             write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente)));
         }
@@ -137,34 +212,4 @@ int main(int argc, char **argv) {
     fflush(stdout);
     } while (!salir);
 
-  
-
 }
-
-  // datos.contenido.registro.nombre_pipe = idTalker;
-  // datos.contenido.mensajeIndividual.origen = 0l;  // Mi ID
-  // datos.contenido.mensajeIndividual.destino = 1l; // ID del detino
-  // strcpy(datos.contenido.mensajeIndividual.mensaje, "¿Qué esta ocurriendo aquí?"); // Contenido
-
-  // Mientras que no haya un resultado
-  // while (1) {
-  //   // Intentar leer del pipe
-  //   resultado = read(pipe_especifico, &respuesta, sizeof(struct RespuestaServidor));
-
-  //   // Se ha recibido algo por el pipe
-  //   if (resultado> 0) {
-  //     switch (respuesta.tipo) {
-  //     case MENSAJE:
-  //       printf("Ha recibido un mensaje de: %d",
-  //              respuesta.contenido.mensaje.origen);
-  //       printf("Mensaje: %s", respuesta.contenido.mensaje.mensaje);
-
-  //     case RESPUESTA:
-  //       printf("Respuesta del servidor: %d", respuesta.contenido.respuesta.codigo);
-  //       printf("Respuesta del servidor: %s", respuesta.contenido.respuesta.mensaje);
-  //     }
-  //   } else {
-  //     /// Código asíncrono:
-  //     // No se ha leído nada por el pipe
-  //   }
-  // }
