@@ -1,30 +1,71 @@
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <ctype.h>
-#include <errno.h>
+/* Realizado por: Fabio Buitrago- Camilo Martinez - Luisa Parra
+ * Proyecto 02: Chattering <Sistemas Operativos>
+ * Pontificia Universidad Javeriana
+ * Contiene: Implementación de cliente de Chattering
+ * El cliente solicita los servicios de registro, listar usuarios conectados,
+ * crear grupos, listar integrantes de grupo, enviar mensajes individuales,
+ * enviar mensajes grupas y salir guardando la información correspondiente
+*/
 
+/**
+ * Funciones utilizadas para la implementación del cliente
+*/
+#include <fcntl.h> // Operaciones de control sobre descriptores
+#include <stdio.h> // Entrada y salida estándar de consola C
+#include <stdlib.h> // Asignación de memoria (malloc) y funciones de casteo (atoi)
+#include <string.h> // Manipulación de cadenas de caracteres
+#include <unistd.h> // Invocación de llamadas al sistema y operaciones del SOP (open, read, write, close)
+#include <sys/types.h> // Definicion tipos de datos llamadas al sistema
+#include <sys/stat.h>  // Definición funciones para obtención de información del estado de archivos
+#include <signal.h> // Funciones y constantes para caputa las señales (signal)
+#include <ctype.h> // Comprobar tipo de dato
+#include <errno.h> // Proporciona macros y funciones para el manejo de errores (perror)
+
+/**
+ * Llamado de cabecera peticion.h y respuesta.h
+ * Utilizado para enviar las peticiones y recibir las respuestas del servidor
+ * en estructuras por medio de pipes nominales
+*/
 #include "peticion.h"
 #include "respuesta.h"
 
+/**
+ * Tamaño máximo de un mensaje + petición
+*/
 #define _GNU_SOURCE
 #define MAX_TAM 120
 
-// Variables globales para indicar eventos de entrada
-volatile sig_atomic_t recibido_consola_signal = 0;
+/**
+ * Variables globales
+*/
 
-int pipe_especifico = 0;
-int resultado = 0;
-char nomPipeTalker[MAX_TAM];
-int registro = 0;
+volatile sig_atomic_t recibido_consola_signal = 0; //Indicar la señal enviada por el servidor
 
-// Funcion de manejo de señales
+int pipe_especifico = 0; // File Descriptor asociado al pipe específico de Talker a Servidor
+int resultado = 0; // CAntidad de información recibida en bytes leídos (En caso de ocurrir un error retorna -1 o al EOF retorna 0)
+char nomPipeTalker[MAX_TAM]; // Nombre indicado para el pipe especificado por el Talker
+
+/**
+Función: console_signal_handler
+Parámetros:
+    signum - número de señal asociado
+Valor de salida:
+    Ninguno
+Descripción:
+    1. Se declara una variable respuesta de tipo struct RespuestaServidor para almacenar 
+    la respuesta recibida.
+    2. Se utiliza la función read para leer datos del pipe específico, guardando el resultado 
+    en la variable resultado.
+    3. Si resultado es igual a -1, se verifica si el error se debe a que no hay datos 
+    disponibles en el momento. En caso afirmativo, no se realiza ninguna acción adicional. De lo contrario, se muestra un mensaje de error utilizando perror y se sale del programa.
+    4. Si resultado es mayor a 0, indica que se ha leído con éxito una respuesta del pipe.
+    5. Se utiliza una estructura de control switch para determinar el tipo de respuesta 
+    asociado a la variable respuesta.tipo.
+    6. Dependiendo del tipo de respuesta, se muestra información específica en la consola 
+    utilizando printf. Esto puede incluir datos como el ID asociado, mensajes de respuesta del servidor, lista de usuarios conectados, lista de usuarios en un grupo, mensajes individuales, mensajes grupales, mensajes de creación de grupo, mensajes de salida, o mensajes de error.
+    7. Finalmente, se llama a fflush(stdout) para asegurarse de que los datos se impriman 
+    inmediatamente en la salida estándar.
+*/
 void console_signal_handler(int signum) {
     struct RespuestaServidor respuesta;
     resultado = read(pipe_especifico, &respuesta, sizeof(struct RespuestaServidor));
@@ -101,6 +142,57 @@ void console_signal_handler(int signum) {
     }
 }
 
+/* * *
+Función: main
+Parámetros de entrada: 
+    argc - número de argumentos ingresados por el usuario
+    argv - arreglo que contiene los argumentos ingresados por el usuario
+Valor de salida: 
+    Entero que representa si el programa finalizó sin errores (0) o con algun error (1)
+Descripción: 
+    La función main es el punto de entrada del programa Talker. A continuación, se describe brevemente su funcionamiento:
+    1. Se registra la función console_signal_handler como controlador de la señal SIGUSR1.
+    2. Se declaran variables locales, como nomPipeManager y idTalker, para almacenar los 
+    argumentos pasados por línea de comandos.
+    3. Se verifica si el número de argumentos pasados es igual a 5. En caso contrario, 
+    se muestra un mensaje de error y se sale del programa.
+    4. Se recorren los argumentos pasados por línea de comandos utilizando un bucle. Se asigna 
+    el valor correspondiente a idTalker si se encuentra el argumento -i, y se asigna el valor 
+    correspondiente a nomPipeManager si se encuentra el argumento -p. Si se encuentra un 
+    argumento inválido o repetido, se muestra un mensaje de error y se sale del programa.
+    5. Se verifica si idTalker es menor o igual a 0. En caso afirmativo, se muestra un mensaje 
+    de error y se sale del programa.
+    6. Se crea una variable datos de tipo struct PeticionCliente y se configuran sus campos 
+    con valores correspondientes a una consulta de registro.
+    7. Se solicita al usuario ingresar el nombre del pipe a utilizar mediante la función 
+    fgets, y se elimina el carácter de nueva línea del final de la cadena.
+    8. Se copia el nombre del pipe en el campo correspondiente de datos.
+    9. Se obtiene el ID del proceso actual utilizando getpid().
+    10. Se abre el pipe nomPipeManager en modo escritura no bloqueante y se guarda el 
+    descriptor de archivo en pipe_servidor_general. Si la apertura del pipe falla, se muestra 
+    un mensaje de error y se sale del programa.
+    11. Se escribe la estructura datos en el pipe utilizando write. Si la escritura falla, 
+    se muestra un mensaje de error y se sale del programa.
+    12. Se crea el pipe nomPipeTalker utilizando mkfifo con los permisos adecuados.
+    13. Se abre el pipe nomPipeTalker en modo lectura no bloqueante y se guarda el descriptor 
+    de archivo en pipe_especifico. Si la apertura del pipe falla, se muestra un mensaje de 
+    error y se sale del programa.
+    14. Se muestra un banner de presentación en la consola.
+    15. Se inicia un bucle que permite al usuario ingresar comandos desde la consola.
+    16. Se lee el comando ingresado utilizando fgets y se elimina el carácter de nueva 
+    línea del final de la cadena.
+    17. Se realiza un análisis del comando ingresado para determinar su tipo y extraer los 
+    argumentos correspondientes.
+    18. Dependiendo del tipo de comando, se configuran los campos de datos con los valores 
+    adecuados.
+    19. Se escribe la estructura datos en el pipe pipe_servidor_general utilizando write. 
+    Si la escritura falla, se muestra un mensaje de error y se sale del programa.
+    20. Se repite el bucle hasta que la variable salir se establezca en un valor diferente de 0.
+Importante: 
+    Se realiza la verificación especificada para que el programa evite ejecutarse 
+    si alguno de los argumentos contiene errores tanto en la digitación del usuario 
+    como a la hora de realizar llamadas al sistema
+* * */
 int main(int argc, char **argv) {
 
     signal(SIGUSR1, console_signal_handler);
@@ -164,6 +256,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    // Opcional, verificación que el pipe no existe, en caso de que existe se borra utilizando unlink
     // if (access(nomPipeTalker, F_OK) == 0)
     // {
     //     if (unlink(nomPipeTalker) == -1) {
@@ -199,7 +292,15 @@ int main(int argc, char **argv) {
     printf("(__)(__)(_\") (\"_)(__)  (__)(__) (__)(__) (__)(__) (__) (__)  (__)\\_)-' '-(_/ (_\")  (_/(__)__)  \n");
     printf("_______________________________________________________________________________________________\n");
     printf("__________________________________________T A L K E R__________________________________________\n");
-
+    printf("\n -> Comandos\n");
+    printf(" -> sent \"<Mensaje>\" id: Máximo de 100 caracteres y el id debe estar conectado\n");
+    printf(" -> list: Listar todos los usuarios conectados\n");
+    printf(" -> list <GID>: Listar todos los usuarios del grupo GID\n");
+    printf(" -> group <GID> <id1, id2, id3... idN>: Crea el grupo con id GID y despues los integrantes\n");
+    printf(" -> sentgroup \"<Mensaje>\" GID: Máximo de 100 caracteres y el id del grupo debe existir\n");
+    printf(" -> salir: Salir del programa y guardar el id asociado\n");
+    printf("\n_______________________________________________________________________________________________\n");
+    printf("__________________________________________T A L K E R__________________________________________\n");
     do {
 
         char mensaje_envio[MAX_TAM];
@@ -225,18 +326,22 @@ int main(int argc, char **argv) {
             char mensaje[MAX_TAM];
             int number;
 
-            sscanf(string, "\"%[^\"]\" %d", mensaje, &number);
-
-            datos.tipo = CONSULTA_MENSAJE_INDIVIDUAL;
-            datos.contenido.mensajeIndividual.origen = idTalker;
-            datos.contenido.mensajeIndividual.destino = number;
-            strcpy(datos.contenido.mensajeIndividual.mensaje, mensaje);
-            strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
-
-            if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
-                perror("Write: ");
-                exit(1);
+            if(sscanf(string, "\"%[^\"]\" %d", mensaje, &number) != 2){
+                printf(" -> Recuerda, el id es un numero\n");
             }
+            else {
+                datos.tipo = CONSULTA_MENSAJE_INDIVIDUAL;
+                datos.contenido.mensajeIndividual.origen = idTalker;
+                datos.contenido.mensajeIndividual.destino = number;
+                strcpy(datos.contenido.mensajeIndividual.mensaje, mensaje);
+                strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
+
+                if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                    perror("Write: ");
+                    exit(1);
+                }
+            }
+
         }
 
         else if (strcmp(command, "list") == 0)
@@ -274,22 +379,38 @@ int main(int argc, char **argv) {
             int id_grupo;
             int tamanio = 0;
 
-            sscanf(string, "%d", &id_grupo);
-            
-            char* token = strtok(string, " ");
-            if (token != NULL) {
-                token = strtok(NULL, ",");
-                while (token != NULL) {
-                    datos.contenido.creacionGrupo.integrantes[tamanio++] = atoi(token);
+            if (sscanf(string, "%d", &id_grupo) == 1){
+                int valido = 1;
+                char* token = strtok(string, " ");
+                if (token != NULL) {
                     token = strtok(NULL, ",");
+                    if(!isdigit(*token)){
+                        valido = 0;
+                    }
+                    while (token != NULL) {
+                        datos.contenido.creacionGrupo.integrantes[tamanio++] = atoi(token);
+                        if(!isdigit(*token)){
+                            valido = 0;
+                        }
+                        token = strtok(NULL, ",");
+                    }
+                }
+                if(valido == 1){
+                    datos.contenido.creacionGrupo.id_grupo = id_grupo;
+                    datos.contenido.creacionGrupo.cantidad_integrantes = tamanio;
+                    if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                        perror("Write: ");
+                        exit(1);
+                    }
+                }
+                else{
+                    printf(" -> ID usuario no válido, recuerde que es un numero\n");
                 }
             }
-            datos.contenido.creacionGrupo.id_grupo = id_grupo;
-            datos.contenido.creacionGrupo.cantidad_integrantes = tamanio;
-            if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
-                perror("Write: ");
-                exit(1);
+            else {
+                printf(" -> El GID debe ser un entero\n");
             }
+            
         }
 
         else if(strcmp(command, "sentgroup") == 0)
@@ -297,17 +418,22 @@ int main(int argc, char **argv) {
             char mensaje[MAX_TAM];
             int number;
 
-            sscanf(string, "\"%[^\"]\" %d", mensaje, &number);
-
-            datos.tipo = CONSULTA_MENSAJE_GRUPAL;
-            datos.contenido.mensajeGrupal.origen = idTalker;
-            datos.contenido.mensajeGrupal.grupo_destino = number;
-            strcpy(datos.contenido.mensajeGrupal.mensaje,mensaje);
-
-            if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
-                perror("Write: ");
-                exit(1);
+            if(sscanf(string, "\"%[^\"]\" %d", mensaje, &number) != 2){
+                printf(" -> Recuerda, el GID es un numero\n");
             }
+            else {
+
+                datos.tipo = CONSULTA_MENSAJE_GRUPAL;
+                datos.contenido.mensajeGrupal.origen = idTalker;
+                datos.contenido.mensajeGrupal.grupo_destino = number;
+                strcpy(datos.contenido.mensajeGrupal.mensaje,mensaje);
+
+                if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                    perror("Write: ");
+                    exit(1);
+                }
+            }
+
         }
 
         else if(strcmp(command, "salir") == 0)

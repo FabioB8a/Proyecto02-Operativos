@@ -1,12 +1,16 @@
 #ifndef DATOS_H
 #define DATOS_H
 
+/**
+ * Tamaño máximo de un mensaje + petición
+ * Tamaño máximo de grupos dentro del servidor
+ * Tamaño máximo de integrantes por grupo
+*/
 #define MAX_TAM 120
 #define MAX_TAM_GRUPOS 30
 #define MAX_TAM_POR_GRUPO 20
 
-/// Enumeración con los tipos de mensajes que puedo enviar
-
+// Enumeración con los tipos de peticiones que puede enviar el cliente al servidor
 enum TipoPeticion {
 	CONSULTA_REGISTRO,
 	CONSULTA_LISTAR_U,
@@ -17,8 +21,7 @@ enum TipoPeticion {
 	SOLICITUD_SALIDA,
 };
 
-/// Tipos de mensaje que puedo enviar y sus estructuras
-
+// Tipos de peticiones que puedo enviar junto a sus estructuras
 struct SolicitudRegistro {
 	int idRegistro;
 	int pid;
@@ -68,7 +71,7 @@ struct DesconexionGrupo {
 	int id_grupo;
 };
 
-/// Unión con todos los tipos de mensaje
+// Unión con todos los tipos de peticiones
 union TipoContenido {
 	struct SolicitudRegistro registro;
 	struct SolicitudListaU solicitudListaU;
@@ -81,7 +84,7 @@ union TipoContenido {
 	struct DesconexionGrupo desconexionGrupo;
 };
 
-/// Datos que se envían entre cliente y servidor
+// Datos que se envían entre cliente y servidor
 struct PeticionCliente {
 	enum TipoPeticion tipo;
 	union TipoContenido contenido;

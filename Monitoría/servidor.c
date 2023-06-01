@@ -1,24 +1,91 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <stdbool.h>
-#include <errno.h>
+/* Realizado por: Fabio Buitrago- Camilo Martinez - Luisa Parra
+ * Proyecto 02: Chattering <Sistemas Operativos>
+ * Pontificia Universidad Javeriana
+ * Contiene: Implementación del servidor de Chattering
+ * El servidor recibe los servicios de registro, listar usuarios conectados,
+ * crear grupos, listar integrantes de grupo, enviar mensajes individuales,
+ * enviar mensajes grupas y salir guardando la información correspondiente
+*/
+#include <fcntl.h> // Operaciones de control sobre descriptores
+#include <stdio.h> // Entrada y salida estándar de consola C
+#include <stdlib.h> // Asignación de memoria (malloc) y funciones de casteo (atoi)
+#include <string.h> // Manipulación de cadenas de caracteres
+#include <unistd.h> // Invocación de llamadas al sistema y operaciones del SOP (open, read, write, close)
+#include <sys/types.h> // Definicion tipos de datos llamadas al sistema
+#include <sys/stat.h>  // Definición funciones para obtención de información del estado de archivos
+#include <signal.h> // Funciones y constantes para caputa las señales (signal)
+#include <errno.h> // Proporciona macros y funciones para el manejo de errores (perror)
 
+/**
+ * Funciones utilizadas para la implementación del servidor
+ */
 #include "peticion.h"
 #include "respuesta.h"
 
+/**
+ * Tamaño máximo de un mensaje + petición
+ * Tamaño máximo de grupos dentro del servidor
+ * Tamaño máximo de integrantes por grupo
+*/
 #define MAX_TAM 120
 #define MAX_TAM_GRUPOS 30
 #define MAX_TAM_POR_GRUPO 20
 
-// TOCA HACER TODOS LOS PERROR
+/**
+ * Declaración de las funciones
+*/
 void enviar_mensaje(struct RespuestaServidor respuesta, char* nombre_pipe, int pID);
 
+/* * *
+Función: main
+Parámetros de entrada: 
+    argc - número de argumentos ingresados por el usuario
+    argv - arreglo que contiene los argumentos ingresados por el usuario
+Valor de salida: 
+    Entero que representa si el programa finalizó sin errores (0) o con algun error (1)
+Descripción: 
+    La función main es el punto de entrada del programa Manager. A continuación, se describe brevemente su funcionamiento:
+    1. Se declara una estructura llamada PeticionCliente para almacenar los datos recibidos.
+    2. Se inicializan las variables nombre_Pipe y tam_maximo con el valor NULL y 0, respectivamente.
+    3. Se verifica si el número de argumentos pasados al programa es igual a 5. Si no es así, 
+    se imprime un mensaje de error y se sale del programa.
+    4. Se recorren los argumentos pasados al programa en pares (usando un bucle for con incremento 
+    de 2).
+    5. Si el argumento actual es -n y tam_maximo aún no tiene un valor asignado, se convierte el 
+    siguiente argumento en un entero y se asigna a tam_maximo.
+    6. Si el argumento actual es -p y nombre_Pipe aún no tiene un valor asignado, se asigna el 
+    siguiente argumento a nombre_Pipe.
+    7. Si ninguno de los casos anteriores se cumple, se imprime un mensaje de error y se sale del 
+    programa.
+    8. Se verifica si tam_maximo es menor o igual a 0. Si es así, se imprime un mensaje de error 
+    y se sale del programa.
+    9. Se crean estructuras de datos para almacenar información sobre clientes y grupos.
+    10. Se inicializa un array infoConexion con el tamaño máximo de clientes y se establece el 
+    valor de cada elemento en 0.
+    11. Se verifica si ya existe un archivo con el nombre especificado en nombre_Pipe. Si existe, 
+    se elimina.
+    12. Se crea un nuevo archivo FIFO (pipe) con el nombre nombre_Pipe y se establecen los permisos 
+    de acceso.
+    13. Se abre el pipe en modo lectura y no bloqueante, y se obtiene un descriptor de archivo.
+    14. Se inicializan varias variables utilizadas en el bucle principal del programa.
+    15. Se muestra un mensaje de bienvenida o encabezado del programa en la salida estándar.
+    
+    A partir de este punto, se entra en un bucle principal que realiza las siguientes operaciones:
+    1. Lee datos del pipe general en una variable recibidos de tipo PeticionCliente.
+    2. Si no hay datos disponibles en el pipe, el programa verifica si la causa es que no hay datos 
+    disponibles en el momento o si hay un error de lectura. En caso de que no haya datos disponibles, 
+    el programa continúa con la siguiente iteración del bucle. Si hay un error de lectura, se muestra 
+    un mensaje de error y se sale del programa.
+    3. Si se leen datos del pipe, se realiza un procesamiento adicional según el tipo de consulta 
+    especificado en recibidos.tipo.
+    4. Dependiendo del tipo de consulta, se generan respuestas adecuadas y se envían a través de pipes 
+    individuales a los clientes correspondientes.
+    5. El bucle principal se repite hasta que se cumpla una condición para salir del bucle.
+Importante: 
+    Se realiza la verificación especificada para que el programa evite ejecutarse 
+    si alguno de los argumentos contiene errores tanto en la digitación del usuario 
+    como a la hora de realizar llamadas al sistema
+* * */
 int main(int argc, char **argv) {
 
   /// Proceso Servidor:
@@ -142,6 +209,8 @@ int main(int argc, char **argv) {
     }
     if (resultado > 0) {
       switch (recibidos.tipo) {
+
+        // Registro
         case CONSULTA_REGISTRO:
           
           respuesta.tipo = RESPUESTA_REGISTRO;
@@ -160,10 +229,17 @@ int main(int argc, char **argv) {
 
           printf("\n -> Registro\n");
           // Pipe repetido (No se envía mensaje ya que en el cliente se mata el proceso)
-          if (pipe_encontrado != -1 && infoConexion[indice_encontrado] == 1){ 
+          if (pipe_encontrado != -1 && infoConexion[pipe_encontrado] == 1){ 
             printf(" -> Pipe repetido\n");
             printf(" -> El nombre del pipe es: %s\n", recibidos.contenido.registro.nombre_pipe);
             printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
+          }
+          // Si se supera el límite de usuarios
+          else if (numCliente + 1 == tam_maximo){
+            printf(" -> Tamaño maximo de clientes alcanzado\n");
+            strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Alcance maximo alcanzado");
+            sleep(1);
+            enviar_mensaje(respuesta,recibidos.contenido.registro.nombre_pipe,recibidos.contenido.registro.pid);
           }
           // En caso de que no exista pipe repetido
           else {
@@ -221,6 +297,7 @@ int main(int argc, char **argv) {
 
         break;
 
+        // Consultar lista usuarios conectados
         case CONSULTA_LISTAR_U:
 
           respuesta.tipo = RESPUESTA_LISTAR_U;
@@ -243,6 +320,7 @@ int main(int argc, char **argv) {
 
         break;
 
+        // Consultar lista de integrantes de grupo
         case CONSULTA_LISTAR_G:
 
           respuesta.tipo = RESPUESTA_LISTAR_G;
@@ -251,7 +329,6 @@ int main(int argc, char **argv) {
           printf(" -> El grupo consultado es: G%d\n",recibidos.contenido.solicitudListaG.id_grupo);
           printf(" -> numGrupo: %d\n", numGrupo);
 
-          // Búsqueda de grupo
           indice_grupo_encontrado = -1;
           for (int i= 0; i< numGrupo; i++){
             printf(" -> ID: %d\n", arregloGrupos[i].id_grupo );
@@ -261,7 +338,6 @@ int main(int argc, char **argv) {
             }
           }
 
-          // Verificación de índice encontrado
           indice_encontrado = -1;
           for (int i = 0; i < numCliente; i++) {
               if (arregloClientes[i].id == recibidos.contenido.solicitudListaG.solicitante) {
@@ -275,13 +351,14 @@ int main(int argc, char **argv) {
           }
           else{
             respuesta.contenido.respuestaListarG.tam_maximo = arregloGrupos[indice_grupo_encontrado].cantidad_clientes;
-            for (int i=0; i< respuesta.contenido.respuestaListarG.tam_maximo; i++){
+            for (int i=0; i< respuesta.contenido.respuestaListarG.tam_maximo; i++ && infoConexion[arregloGrupos[indice_grupo_encontrado].id_clientes[i]] == 1){
               respuesta.contenido.respuestaListarG.integrantes[i] = arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[i]].id;
             }
           }
           enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
         break;
 
+        // Mensaje individual
         case CONSULTA_MENSAJE_INDIVIDUAL:
 
           printf("\n -> Mensaje individual\n");
@@ -317,6 +394,7 @@ int main(int argc, char **argv) {
 
         break;
 
+        // Crear grupo
         case CONSULTA_CREACION_GRUPO:
 
           creacion_exitosa = 1;
@@ -359,7 +437,6 @@ int main(int argc, char **argv) {
 
           int indice_agregado;
 
-          // Verificar que todos los integrantes a agregar existan
           if(indice_grupo_encontrado == -1){
 
             for(int i = 0; i< recibidos.contenido.creacionGrupo.cantidad_integrantes; i++) {
@@ -387,12 +464,13 @@ int main(int argc, char **argv) {
             enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           } else {
             printf(" -> Ocurrió un problema a la hora de crear el grupo\n");
-            strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo  no exitosa");
+            strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo  no exitosa - Id usuarios inválidos");
             enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           }
 
         break;
 
+        // Mensaje grupal
         case CONSULTA_MENSAJE_GRUPAL:
 
           printf("\n -> Mensaje grupal\n");
@@ -411,11 +489,13 @@ int main(int argc, char **argv) {
             respuesta.contenido.mensajeGrupal.origen = recibidos.contenido.mensajeGrupal.origen;
             strcpy(respuesta.contenido.mensajeGrupal.mensaje,recibidos.contenido.mensajeGrupal.mensaje);
             for(int j = 0; j<arregloGrupos[indice_grupo_encontrado].cantidad_clientes; j++){
-              enviar_mensaje(respuesta,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].nombre_asociado,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].pid);
+              if (infoConexion[arregloGrupos[indice_grupo_encontrado].id_clientes[j]] == 1)
+              {
+                enviar_mensaje(respuesta,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].nombre_asociado,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].pid);
+              }
             }
           }
           else {
-            // Búsqueda de creador
             indice_encontrado = -1;
             for (int i = 0; i < numCliente; i++) {
                 if (arregloClientes[i].id == recibidos.contenido.mensajeGrupal.origen) {
@@ -429,6 +509,7 @@ int main(int argc, char **argv) {
           }
         break;
 
+        // Salida
         case SOLICITUD_SALIDA:
 
           respuesta.tipo = RESPUESTA_SALIDA;
@@ -454,6 +535,36 @@ int main(int argc, char **argv) {
 close(pipe_fd_general);
 }
 
+/**
+Función: enviar_mensaje
+Parámetros:
+    struct RespuestaServidor respuesta: Respuesta a enviar por el pipe Nominal
+    char* nombre_pipe: Nombre del pipe, para asociar al descriptor
+    int pID: pID del proceso Talker, utilizado para realizar la Signal
+Valor de salida:
+    Ninguno
+Descripción:
+    1. Abre el archivo de tubería con el nombre especificado por nombre_pipe utilizando la función 
+    open. El modo de apertura se establece en escritura solamente (O_WRONLY) y se habilita la apertura 
+    no bloqueante (O_NONBLOCK).
+    Si la llamada a open devuelve -1, indica que se produjo un error al abrir el archivo de tubería. 
+    En ese caso, se imprime un mensaje de error utilizando perror y se sale de la función con exit(1).
+
+    2. Escribe la estructura respuesta en el archivo de tubería utilizando la función write. La estructura 
+    se pasa como un puntero a través del operador &. El tamaño de la estructura se especifica mediante 
+    sizeof(struct RespuestaServidor).
+    Si la llamada a write devuelve -1, indica que se produjo un error al escribir en el archivo de tubería. 
+    En ese caso, se imprime un mensaje de error utilizando perror y se sale de la función con exit(1).
+
+    3. Envía la señal SIGUSR1 al proceso con el ID especificado por pID utilizando la función kill. Esta señal 
+    se utiliza para notificar al proceso destinatario que hay un mensaje disponible en la tubería.
+    Si la llamada a kill devuelve -1, indica que se produjo un error al enviar la señal. En ese caso, se imprime 
+    un mensaje de error utilizando perror y se sale de la función con exit(1).
+
+    4. Cierra el archivo de tubería utilizando la función close.
+    Si la llamada a close devuelve -1, indica que se produjo un error al cerrar el archivo de tubería. En ese caso, 
+    se imprime un mensaje de error utilizando perror y se sale de la función con exit(1).
+**/
 void enviar_mensaje(struct RespuestaServidor respuesta, char* nombre_pipe, int pID)
 {
   int file_descriptor;

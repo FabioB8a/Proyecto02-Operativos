@@ -1,10 +1,12 @@
 #ifndef RESPUESTA_H
 #define RESPUESTA_H
 
+/**
+ * Tamaño máximo de un mensaje + petición
+*/
 #define MAX_TAM 120
 
-/// Enumeración con los tipos de mensajes que puedo enviar
-
+// Enumeración con los tipos de mensajes que puede enviar el cliente al servidor
 enum TipoRespuesta {
 	RESPUESTA_REGISTRO,
 	RESPUESTA_LISTAR_U,
@@ -16,8 +18,7 @@ enum TipoRespuesta {
 	ERROR,
 };
 
-/// Tipos de mensaje que puedo enviar y sus estructuras
-
+// Tipos de respuestas que puedo enviar junto a sus estructuras
 struct RespuestaRegistro {
 	int codigo;
 	char mensaje[MAX_TAM];
@@ -59,7 +60,7 @@ struct Error {
 	char mensaje[MAX_TAM];
 };
 
-/// Unión con todos los tipos de mensaje
+// Unión con todos los tipos de respuestas
 union TipoContenidoRespuesta {
 	struct RespuestaRegistro respuestaRegistro;
 	struct RespuestaListarU respuestaListarU;
@@ -71,7 +72,7 @@ union TipoContenidoRespuesta {
 	struct Error error;
 };
 
-/// Datos que se envían entre cliente y servidor
+// Datos que se envían entre cliente y servidor
 struct RespuestaServidor {
 	enum TipoRespuesta tipo;
 	union TipoContenidoRespuesta contenido;
