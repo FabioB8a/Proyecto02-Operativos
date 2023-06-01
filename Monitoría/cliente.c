@@ -31,9 +31,11 @@
 
 /**
  * Tamaño máximo de un mensaje + petición
+ * Tamaño del buffer (utilizado para parámetros que no sean mensajes) <Peticiones>
 */
-#define _GNU_SOURCE
-#define MAX_TAM 120
+//#define _GNU_SOURCE
+#define MAX_TAM 100
+#define TAM_BUFFER 100
 
 /**
  * Variables globales
@@ -43,7 +45,7 @@ volatile sig_atomic_t recibido_consola_signal = 0; //Indicar la señal enviada p
 
 int pipe_especifico = 0; // File Descriptor asociado al pipe específico de Talker a Servidor
 int resultado = 0; // CAntidad de información recibida en bytes leídos (En caso de ocurrir un error retorna -1 o al EOF retorna 0)
-char nomPipeTalker[MAX_TAM]; // Nombre indicado para el pipe especificado por el Talker
+char nomPipeTalker[TAM_BUFFER]; // Nombre indicado para el pipe especificado por el Talker
 
 /**
 Función: console_signal_handler
@@ -85,7 +87,7 @@ void console_signal_handler(int signum) {
                 
                 printf("\n -> Id asociado: %d\n", respuesta.contenido.respuestaRegistro.codigo);
                 printf(" -> Respuesta del servidor: %s\n", respuesta.contenido.respuestaRegistro.mensaje);
-                if (strcmp(respuesta.contenido.respuestaRegistro.mensaje, "Usuario duplicado") == 0 || strcmp(respuesta.contenido.respuestaRegistro.mensaje, "Id inválido") == 0) {
+                if (strcmp(respuesta.contenido.respuestaRegistro.mensaje, "Agregado correctamente") != 0) {
                     printf(" -> Usuario no registrado correctamente\n");
                     unlink(nomPipeTalker);
                     exit(1);
@@ -237,7 +239,7 @@ int main(int argc, char **argv) {
     printf(" -> Usted desea ingresar a Chattering...\n");
     printf(" -> Por favor, ingresa el nombre de tu pipe: ");
 
-    fgets(nomPipeTalker, MAX_TAM, stdin);
+    fgets(nomPipeTalker, TAM_BUFFER, stdin);
     nomPipeTalker[strcspn(nomPipeTalker, "\n")] = '\0';
 
     strcpy(datos.contenido.registro.nombre_pipe, nomPipeTalker);
@@ -303,13 +305,13 @@ int main(int argc, char **argv) {
     printf("__________________________________________T A L K E R__________________________________________\n");
     do {
 
-        char mensaje_envio[MAX_TAM];
-        fgets(mensaje_envio, MAX_TAM, stdin);
+        char mensaje_envio[MAX_TAM+TAM_BUFFER];
+        fgets(mensaje_envio, MAX_TAM+TAM_BUFFER, stdin);
         mensaje_envio[strcspn(mensaje_envio, "\n")] = '\0';
         fflush(stdin);
 
         char command[10];
-        char string[MAX_TAM] = "";
+        char string[MAX_TAM+TAM_BUFFER] = "";
 
         char* token = strtok(mensaje_envio, " ");
         if (token != NULL) {
@@ -333,12 +335,16 @@ int main(int argc, char **argv) {
                 datos.tipo = CONSULTA_MENSAJE_INDIVIDUAL;
                 datos.contenido.mensajeIndividual.origen = idTalker;
                 datos.contenido.mensajeIndividual.destino = number;
-                strcpy(datos.contenido.mensajeIndividual.mensaje, mensaje);
-                strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
+                if (strlen(mensaje) >= MAX_TAM){
+                    printf(" -> El mensaje debe contener menos de %d caracteres\n",MAX_TAM);
+                }else{
+                    strcpy(datos.contenido.mensajeIndividual.mensaje, mensaje);
+                    strcpy(datos.contenido.mensajeIndividual.nombre, nomPipeTalker);
 
-                if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
-                    perror("Write: ");
-                    exit(1);
+                    if(write(pipe_servidor_general, &datos, (sizeof(struct PeticionCliente))) == -1){
+                        perror("Write: ");
+                        exit(1);
+                    }
                 }
             }
 
@@ -410,7 +416,6 @@ int main(int argc, char **argv) {
             else {
                 printf(" -> El GID debe ser un entero\n");
             }
-            
         }
 
         else if(strcmp(command, "sentgroup") == 0)

@@ -2,11 +2,13 @@
 #define DATOS_H
 
 /**
- * Tamaño máximo de un mensaje + petición
+ * Tamaño máximo de un mensaje
+ * Tamaño del buffer (utilizado para parámetros que no sean mensajes) <Peticiones>
  * Tamaño máximo de grupos dentro del servidor
  * Tamaño máximo de integrantes por grupo
 */
-#define MAX_TAM 120
+#define MAX_TAM 100
+#define TAM_BUFFER 100
 #define MAX_TAM_GRUPOS 30
 #define MAX_TAM_POR_GRUPO 20
 
@@ -25,7 +27,7 @@ enum TipoPeticion {
 struct SolicitudRegistro {
 	int idRegistro;
 	int pid;
-	char nombre_pipe[MAX_TAM];
+	char nombre_pipe[TAM_BUFFER];
 };
 
 struct SolicitudListaU {
@@ -40,7 +42,7 @@ struct SolicitudListaG {
 struct SolicitudMensajeIndividual {
 	int origen;
 	int destino;
-	char nombre[MAX_TAM];
+	char nombre[TAM_BUFFER];
 	char mensaje[MAX_TAM];
 };
 

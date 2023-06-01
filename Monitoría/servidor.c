@@ -23,11 +23,13 @@
 #include "respuesta.h"
 
 /**
- * Tamaño máximo de un mensaje + petición
+ * Tamaño máximo de un mensaje
+ * Tamaño del buffer (utilizado para parámetros que no sean mensajes) <Peticiones>
  * Tamaño máximo de grupos dentro del servidor
  * Tamaño máximo de integrantes por grupo
 */
-#define MAX_TAM 120
+#define MAX_TAM 100
+#define TAM_BUFFER 100
 #define MAX_TAM_GRUPOS 30
 #define MAX_TAM_POR_GRUPO 20
 
@@ -129,7 +131,7 @@ int main(int argc, char **argv) {
     int id;
     int fd_pipe;
     int pid;
-    char nombre_asociado[MAX_TAM];
+    char nombre_asociado[TAM_BUFFER];
   };
 
   struct Grupo {
@@ -151,7 +153,8 @@ int main(int argc, char **argv) {
     infoConexion[i] = 0;
   }
   
-  // Creación de pipe
+  // Verificación de no existencia de un pipe nominal con el mismo nombre
+  // EN caso afirmativo, se realiza unlink
   if (access(nombre_Pipe, F_OK) == 0)
   {
       if (unlink(nombre_Pipe) == -1) {
@@ -161,6 +164,7 @@ int main(int argc, char **argv) {
 
   }
 
+  // Crear el pipe
   if (mkfifo (nombre_Pipe, S_IRUSR | S_IWUSR) == -1)
   {
       perror("Mkfifo: ");
@@ -193,6 +197,9 @@ int main(int argc, char **argv) {
   printf(" _// \\\\  //   \\\\  \\\\    >>  _// \\\\_  _// \\\\_  <<   >>   //   \\\\_.-,_|___|_,-.||   \\\\,-._)(|_   \n");
   printf("(__)(__)(_\") (\"_)(__)  (__)(__) (__)(__) (__)(__) (__) (__)  (__)\\_)-' '-(_/ (_\")  (_/(__)__)  \n");
   printf("_______________________________________________________________________________________________\n");
+  printf("_________________________________________M A N A G E R_________________________________________\n");
+  printf("\n -> Manager iniciado y el sistema podrá tener como máximo %d usuarios\n",tam_maximo);
+  printf("\n_______________________________________________________________________________________________\n");
   printf("_________________________________________M A N A G E R_________________________________________\n");
   do {
 
@@ -235,7 +242,7 @@ int main(int argc, char **argv) {
             printf(" -> El ID del pipe es: %d\n", recibidos.contenido.registro.idRegistro);
           }
           // Si se supera el límite de usuarios
-          else if (numCliente + 1 == tam_maximo){
+          else if (numCliente == tam_maximo){
             printf(" -> Tamaño maximo de clientes alcanzado\n");
             strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Alcance maximo alcanzado");
             sleep(1);
@@ -278,7 +285,7 @@ int main(int argc, char **argv) {
                 strcpy(respuesta.contenido.respuestaRegistro.mensaje, "Usuario reconectado");
                 strcpy(arregloClientes[indice_encontrado].nombre_asociado, recibidos.contenido.registro.nombre_pipe);
                 arregloClientes[indice_encontrado].pid = recibidos.contenido.registro.pid;
-                infoConexion[numCliente] = 1;
+                infoConexion[indice_encontrado] = 1;
               }
 
               // Conectado actualmente
@@ -312,9 +319,12 @@ int main(int argc, char **argv) {
                   break;
               }
           }
-          respuesta.contenido.respuestaListarU.tam_maximo = numCliente;
+          respuesta.contenido.respuestaListarU.tam_maximo = 0;
           for (int i=0; i<numCliente; i++){
-            respuesta.contenido.respuestaListarU.conectados[i] = arregloClientes[i].id;
+            if (infoConexion[i] == 1){
+              respuesta.contenido.respuestaListarU.conectados[i] = arregloClientes[i].id;
+              respuesta.contenido.respuestaListarU.tam_maximo++;
+            }
           }
           enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
 
@@ -346,12 +356,11 @@ int main(int argc, char **argv) {
               }
           }
           if(indice_grupo_encontrado == -1){
-            printf(" -> Indice NO encontrado, el grupo no existe\n");
             respuesta.contenido.respuestaListarG.tam_maximo = -1;
           }
           else{
             respuesta.contenido.respuestaListarG.tam_maximo = arregloGrupos[indice_grupo_encontrado].cantidad_clientes;
-            for (int i=0; i< respuesta.contenido.respuestaListarG.tam_maximo; i++ && infoConexion[arregloGrupos[indice_grupo_encontrado].id_clientes[i]] == 1){
+            for (int i=0; i< respuesta.contenido.respuestaListarG.tam_maximo; i++){
               respuesta.contenido.respuestaListarG.integrantes[i] = arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[i]].id;
             }
           }
@@ -376,20 +385,29 @@ int main(int argc, char **argv) {
                   break;
               }
           }
-          if(indice_encontrado != -1){
+          if(indice_encontrado != -1 && infoConexion[indice_encontrado] == 1){
             enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           }
           else{
+            respuesta.tipo = ERROR;
+            if (infoConexion[indice_encontrado] == 1){
+              printf("Usuario no conectado");
+            strcpy(respuesta.contenido.error.mensaje, "Usuario no conectado");
+            }
+            else{
+              printf("Usuario no añadido");
+              strcpy(respuesta.contenido.error.mensaje, "Usuario no añadido");
+            }
+
             indice_encontrado = -1;
             for (int i = 0; i < numCliente; i++) {
-              if (arregloClientes[i].id == respuesta.contenido.mensajeIndividual.origen) {
+              if (arregloClientes[i].id == recibidos.contenido.mensajeIndividual.origen) {
                   indice_encontrado = i;
                   break;
+              }
             }
-          }
-          respuesta.tipo = ERROR;
-          strcpy(respuesta.contenido.error.mensaje, "Usuario inválido");
-          enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
+            printf("EL indice es: %d",indice_encontrado);
+            enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
           }
 
         break;
@@ -457,11 +475,16 @@ int main(int argc, char **argv) {
           }
 
           if (creacion_exitosa == 1){
+
             arregloGrupos[numGrupo] = nuevoGrupo;
             numGrupo++;
             printf(" -> Grupo %d agregado exitosamente\n",nuevoGrupo.id_grupo);
-            strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo exitosa");
-            enviar_mensaje(respuesta,arregloClientes[indice_encontrado].nombre_asociado,arregloClientes[indice_encontrado].pid);
+            sprintf(respuesta.contenido.creacionGrupo.mensaje, "Creación de grupo %d exitoso", nuevoGrupo.id_grupo);
+
+            for(int i=0; i<nuevoGrupo.cantidad_clientes; i++){
+              enviar_mensaje(respuesta,arregloClientes[nuevoGrupo.id_clientes[i]].nombre_asociado,arregloClientes[nuevoGrupo.id_clientes[i]].pid);
+            }
+
           } else {
             printf(" -> Ocurrió un problema a la hora de crear el grupo\n");
             strcpy(respuesta.contenido.creacionGrupo.mensaje,"Creación de grupo  no exitosa - Id usuarios inválidos");
@@ -489,7 +512,7 @@ int main(int argc, char **argv) {
             respuesta.contenido.mensajeGrupal.origen = recibidos.contenido.mensajeGrupal.origen;
             strcpy(respuesta.contenido.mensajeGrupal.mensaje,recibidos.contenido.mensajeGrupal.mensaje);
             for(int j = 0; j<arregloGrupos[indice_grupo_encontrado].cantidad_clientes; j++){
-              if (infoConexion[arregloGrupos[indice_grupo_encontrado].id_clientes[j]] == 1)
+              if (infoConexion[arregloGrupos[indice_grupo_encontrado].id_clientes[j]] == 1 && recibidos.contenido.mensajeGrupal.origen != arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].id)
               {
                 enviar_mensaje(respuesta,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].nombre_asociado,arregloClientes[arregloGrupos[indice_grupo_encontrado].id_clientes[j]].pid);
               }
@@ -511,6 +534,9 @@ int main(int argc, char **argv) {
 
         // Salida
         case SOLICITUD_SALIDA:
+
+          printf("\n -> Mensaje solicitud salida\n");
+          printf(" -> El id a salir es: %d\n", recibidos.contenido.solicitudSalida.solicitante);
 
           respuesta.tipo = RESPUESTA_SALIDA;
           indice_encontrado = -1;

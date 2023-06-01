@@ -12,4 +12,4 @@ cliente: cliente.c
 	$(CC) -o cliente cliente.c
 
 clean:
-	rm -f servidor cliente a b c S
+	rm -f servidor cliente

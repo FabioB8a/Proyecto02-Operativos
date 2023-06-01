@@ -3,8 +3,10 @@
 
 /**
  * Tamaño máximo de un mensaje + petición
+ * Tamaño del buffer (utilizado para parámetros que no sean mensajes) <Peticiones>
 */
-#define MAX_TAM 120
+#define MAX_TAM 100
+#define TAM_BUFFER 100
 
 // Enumeración con los tipos de mensajes que puede enviar el cliente al servidor
 enum TipoRespuesta {
@@ -25,19 +27,19 @@ struct RespuestaRegistro {
 };
 
 struct RespuestaListarU {
-	int conectados[MAX_TAM];
+	int conectados[TAM_BUFFER];
 	int tam_maximo;
 };
 
 struct RespuestaListarG {
-	int integrantes[MAX_TAM];
+	int integrantes[TAM_BUFFER];
 	int tam_maximo;
 };
 
 struct RespuestaMensajeIndividual {
 	int origen;
 	int destino;
-	char nombre[MAX_TAM];
+	char nombre[TAM_BUFFER];
 	char mensaje[MAX_TAM];
 };
 
